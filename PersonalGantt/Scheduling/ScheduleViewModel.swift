@@ -27,6 +27,39 @@ final class ScheduleViewModel {
         result = Scheduler().schedule(tasks: tasks, availableSlots: availableSlots)
     }
 
+    @discardableResult
+    func addTask(_ draft: TaskDraft) throws -> Task {
+        let input = try draft.validated()
+        let task = Task(title: input.title, estimatedMinutes: input.estimatedMinutes, deadline: input.deadline)
+        tasks.append(task)
+        recalculate()
+        return task
+    }
+
+    func updateTask(id: UUID, draft: TaskDraft) throws {
+        let input = try draft.validated()
+        guard let index = tasks.firstIndex(where: { $0.id == id }) else {
+            throw TaskInputError.taskNotFound
+        }
+        // Preserve identity and completion when editing the work requirement.
+        tasks[index].title = input.title
+        tasks[index].estimatedMinutes = input.estimatedMinutes
+        tasks[index].deadline = input.deadline
+        recalculate()
+    }
+
+    func deleteTask(id: UUID) {
+        guard tasks.contains(where: { $0.id == id }) else { return }
+        tasks.removeAll { $0.id == id }
+        recalculate()
+    }
+
+    func toggleCompletion(id: UUID) {
+        guard let index = tasks.firstIndex(where: { $0.id == id }) else { return }
+        tasks[index].isCompleted.toggle()
+        recalculate()
+    }
+
     /// Replace generated availability when fixed events change, then rebuild the plan.
     func updateAvailableSlots(_ slots: [AvailableSlot]) {
         availableSlots = slots
@@ -43,6 +76,7 @@ final class ScheduleViewModel {
 
     /// Unallocated estimate, not a record of completed work.
     func unallocatedMinutes(for task: Task) -> Double {
-        max(0, Double(task.estimatedMinutes) - scheduledMinutes(for: task.id))
+        guard !task.isCompleted else { return 0 }
+        return max(0, Double(task.estimatedMinutes) - scheduledMinutes(for: task.id))
     }
 }

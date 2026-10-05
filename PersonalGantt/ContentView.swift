@@ -2,13 +2,18 @@ import SwiftUI
 
 struct ContentView: View {
     @State private var model = ScheduleViewModel()
+    @State private var editor: TaskEditorRoute?
+    @State private var taskToDelete: Task?
 
     var body: some View {
         NavigationStack {
             List {
                 Section {
-                    Label("サンプルのタスクと空き時間から自動配置しています。", systemImage: "info.circle")
+                    Label("空き時間はサンプルです。タスクを操作すると予定が自動で更新されます。", systemImage: "info.circle")
                         .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                    Text("データはアプリ終了時に消えます。")
+                        .font(.caption)
                         .foregroundStyle(.secondary)
                 }
 
@@ -37,30 +42,20 @@ struct ContentView: View {
                 }
 
                 Section("タスク") {
+                    if model.tasks.isEmpty {
+                        Text("タスクがありません。「タスクを追加」から登録してください。")
+                            .foregroundStyle(.secondary)
+                    }
                     ForEach(model.tasks) { task in
-                        VStack(alignment: .leading, spacing: 6) {
-                            HStack {
-                                Text(task.title).font(.headline)
-                                Spacer()
-                                if task.isCompleted {
-                                    Label("完了", systemImage: "checkmark.circle.fill")
-                                        .foregroundStyle(.secondary)
-                                } else if model.result.unscheduledTaskIDs.contains(task.id) {
-                                    Label(model.scheduledMinutes(for: task.id) > 0 ? "一部未配置" : "未配置", systemImage: "exclamationmark.circle")
-                                        .foregroundStyle(.orange)
-                                } else {
-                                    Label("配置済み", systemImage: "checkmark.circle")
-                                        .foregroundStyle(.green)
-                                }
-                            }
-                            .font(.subheadline)
-                            Text("必要 \(task.estimatedMinutes)分 ・ 配置済み \(model.scheduledMinutes(for: task.id).formatted())分")
-                                .font(.subheadline)
-                            Text("締切: \(task.deadline.formatted(date: .abbreviated, time: .shortened))")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                        }
-                        .padding(.vertical, 4)
+                        TaskRowView(
+                            task: task,
+                            scheduledMinutes: model.scheduledMinutes(for: task.id),
+                            unallocatedMinutes: model.unallocatedMinutes(for: task),
+                            isUnscheduled: model.result.unscheduledTaskIDs.contains(task.id),
+                            onEdit: { editor = TaskEditorRoute(task: task) },
+                            onDelete: { taskToDelete = task },
+                            onToggleCompletion: { model.toggleCompletion(id: task.id) }
+                        )
                     }
                 }
 
@@ -76,7 +71,7 @@ struct ContentView: View {
                                     .foregroundStyle(.orange)
                             }
                         }
-                        Text("締切前の空き時間が不足しています。")
+                        Text("締切前の空き時間が不足しているか、締切までに利用できる枠がありません。")
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }
@@ -99,13 +94,50 @@ struct ContentView: View {
             }
             .navigationTitle("PersonalGantt")
             .toolbar {
+                Button("タスクを追加", systemImage: "plus") {
+                    editor = TaskEditorRoute(task: nil)
+                }
+                .accessibilityIdentifier("add-task")
                 Button("再計算", systemImage: "arrow.clockwise") {
                     model.recalculate()
                 }
             }
+            .sheet(item: $editor) { route in
+                TaskEditorView(
+                    task: route.task,
+                    defaultDeadline: model.availableSlots.last?.end ?? Date().addingTimeInterval(86_400)
+                ) { draft in
+                    if let task = route.task {
+                        try model.updateTask(id: task.id, draft: draft)
+                    } else {
+                        try model.addTask(draft)
+                    }
+                }
+            }
+            .alert(
+                "タスクを削除しますか？",
+                isPresented: Binding(
+                    get: { taskToDelete != nil },
+                    set: { if !$0 { taskToDelete = nil } }
+                ),
+                presenting: taskToDelete
+            ) { task in
+                Button("削除", role: .destructive) {
+                    model.deleteTask(id: task.id)
+                    taskToDelete = nil
+                }
+                Button("キャンセル", role: .cancel) { taskToDelete = nil }
+            } message: { task in
+                Text("「\(task.title)」を削除し、スケジュールを再計算します。")
+            }
         }
         .frame(minWidth: 320, minHeight: 480)
     }
+}
+
+private struct TaskEditorRoute: Identifiable {
+    let id = UUID()
+    let task: Task?
 }
 
 #Preview {
