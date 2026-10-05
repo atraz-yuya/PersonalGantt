@@ -2,7 +2,10 @@ import Foundation
 
 /// Deterministic, earliest-deadline-first allocation. No UI, clock, or persistence.
 nonisolated struct Scheduler: Sendable {
-    func schedule(tasks: [Task], availableSlots: [AvailableSlot]) -> SchedulingResult {
+    func schedule(
+        tasks: [Task], availableSlots: [AvailableSlot],
+        alreadyAllocatedSeconds: [UUID: TimeInterval] = [:]
+    ) -> SchedulingResult {
         let orderedTasks = tasks.filter { !$0.isCompleted }.sorted {
             if $0.deadline != $1.deadline { return $0.deadline < $1.deadline }
             return $0.id.uuidString < $1.id.uuidString
@@ -16,7 +19,9 @@ nonisolated struct Scheduler: Sendable {
                 result.unscheduledTaskIDs.append(task.id)
                 continue
             }
-            var remainingSeconds = Double(task.estimatedMinutes) * 60
+            // Reserved planned work isn't a completion record. The default remains zero.
+            let allocated = alreadyAllocatedSeconds[task.id] ?? 0
+            var remainingSeconds = max(0, Double(task.estimatedMinutes) * 60 - (allocated.isFinite ? max(0, allocated) : 0))
 
             for index in slots.indices {
                 guard remainingSeconds > 0 else { break }
