@@ -1,8 +1,9 @@
 # PersonalGantt
 
 タスク名・所要時間・締切から、空き時間へ作業を自動配置する SwiftUI アプリです。
-開発仕様書 v1 の Phase 1–2（Scheduler MVP）と Phase 3（タスク管理 UI）を実装しています。
+Phase 1–2（Scheduler MVP）、Phase 3（タスク管理 UI）、Phase 4（AvailabilityService + Calendar連携）を実装しています。
 Phase 1–2 の完了地点は Git コミット `e9e05bf` として保存されています。
+Phase 3 の完了地点は `8525aee` です。
 
 ## 起動
 
@@ -11,8 +12,13 @@ Phase 1–2 の完了地点は Git コミット `e9e05bf` として保存され�
 3. Run（⌘R）を実行する。
 
 既存プロジェクトの対応 OS 設定は macOS / iOS / visionOS 27.0 のままです。
-起動時にはサンプルのタスクと空き枠を表示します。タスクは追加・編集・削除・完了切替ができます。
-空き枠はサンプルのままで、データは保存せずアプリ終了時に消えます。
+起動時にはサンプルタスクを表示します。タスクは追加・編集・削除・完了切替ができます。
+空き枠は平日08:00–23:00、土日09:00–23:00で、今日を含む14日分を生成します。
+「使用するカレンダーを選択」で権限を許可し、対象Calendarを選んで「反映」すると固定予定を差し引きます。
+Calendar側の変更後は「Calendarを再読み込み」で更新します。未選択なら活動時間だけを使います。
+TaskとCalendar選択は保存せずアプリ終了時に消えます。
+
+Phase 4 の追加ファイル・責務分離・仕様・検証結果は [Phase 4 実装報告](docs/Phase4.md) を参照してください。
 
 ## 実装内容と変更ファイル
 
@@ -25,7 +31,7 @@ Phase 1–2 の完了地点は Git コミット `e9e05bf` として保存され�
 | `PersonalGantt/Scheduling/SchedulingResult.swift` | 配置済みブロックと、必要時間を配置しきれない Task ID を返す。 |
 | `PersonalGantt/Scheduling/Scheduler.swift` | Foundation のみに依存する決定的なスケジューリング処理。 |
 | `PersonalGantt/Scheduling/ScheduleViewModel.swift` | 初期計算、再計算、タスク操作、空き枠差し替え、表示用集計。UI の body で配置計算を行わない。 |
-| `PersonalGantt/Scheduling/SampleSchedule.swift` | サンプルを UI から分離。明日から3日間の枠を生成。 |
+| `PersonalGantt/Scheduling/SampleSchedule.swift` | サンプルタスク。旧3日枠も保持するが、Phase 4のアプリでは使わない。 |
 | `PersonalGantt/ContentView.swift` | 計算結果とタスク一覧。追加/編集シート、削除確認、未配置時間、使用枠を表示。 |
 | `PersonalGantt/Views/TaskEditorView.swift` | 名前・所要時間・締切のフォーム。エラーを表示し、無効入力では保存を無効化。 |
 | `PersonalGantt/Views/TaskRowView.swift` | 完了切替・編集・削除ボタン、配置済み/一部未配置/配置不能/完了の状態表示。 |
@@ -33,7 +39,7 @@ Phase 1–2 の完了地点は Git コミット `e9e05bf` として保存され�
 | `PersonalGanttTests/TaskManagementTests.swift` | タスク操作の再計算、入力拒否時の非変更、キャンセル、期限切れ等を検証。 |
 
 Xcode のファイル同期グループにより、新規 Swift ファイルは自動的に既存ターゲットへ追加されます。
-`project.pbxproj` の手編集や外部依存の追加は不要でした。
+Phase 4 では `project.pbxproj` にCalendar使用目的説明とMacのentitlement設定を追加しました。外部依存はありません。
 
 ## アルゴリズム
 
@@ -55,7 +61,7 @@ Xcode のファイル同期グループにより、新規 Swift ファイルは�
 
 ## 動作確認
 
-サンプルの表示結果（実行日の翌日を1日目とする）:
+以下は Phase 1–3 のサンプル空き枠での結果です。Phase 4 のアプリではこの3日枠を利用せず、活動時間とCalendarから枠を生成します。
 
 | 日 | 時間 | Task |
 | --- | --- | --- |
@@ -65,12 +71,20 @@ Xcode のファイル同期グループにより、新規 Swift ファイルは�
 | 3日目 | 18:00–20:00 | AtCoder 120分 |
 
 Kaggle は必要150分のうち90分を配置し、残り60分を未配置として表示します。
-3日目の枠は Kaggle の締切後のため使用しません。「再計算」は同じ入力から結果を再生成します。
+3日目の枠は Kaggle の締切後のため使用しません。Phase 4 の「再計算」は取得済み空き枠を利用し、開始済みブロックを保持します。
 未配置時間は、完了した作業を差し引いた残り時間ではありません。作業実績はまだ管理していません。
 
 ## テスト
 
-2026-10-06 の確認結果:
+2026-10-06 の Phase 4 確認結果:
+
+- 単体テスト100ケース（既存50 + 追加50）: 全件成功。
+- macOSビルド・Calendar entitlementを含む署名: 成功。
+- iOS Simulatorビルド: 成功。
+- Mac実画面: 未許可の選択画面・反映無効化・未許可Refreshで結果を保持する表示を確認。
+- OS権限付与と個人Calendar取得、iOS実機操作は未検証。統合テストはメモリ内EKEventと差し替えProviderを利用。
+
+以下は Phase 3 の検証記録です:
 
 - macOS 向けビルドおよび単体テスト50ケース（既存23 + 追加27）: 成功。
 - iOS Simulator 向けビルド（iPhone / iPad 共通ターゲット）: 成功。
@@ -106,17 +120,13 @@ xcodebuild -project PersonalGantt.xcodeproj \
   build CODE_SIGNING_ALLOWED=NO
 ```
 
-## 未実装・制約と次の作業
+## Phase 4 の制約と次の作業
 
-- 優先度、分割禁止、最小作業時間。
-- 固定予定を引いて AvailableSlot を生成する AvailabilityService と EventKit 連携。
-- Calendar の変更検知による自動再計算、Reminders 連携。
-- 過去ブロックの保持、進行中ブロック、作業実績の差し引き。現 API は渡された全未完了 Task を再配置します。
-- Today / 日別 Timeline / Gantt の専用画面。
-- 永続化とデバイス間同期。モデルの Codable 対応のみで、現在は保存しません。
-- 実機・visionOS の動作確認。
+EventKit → FixedEvent → AvailabilityService → AvailableSlot → Schedulerの分離を維持しています。
+今日を1日目とする14日間（例: 10月6日〜19日）が対象です。設定はActivitySettingsから注入できます。
+過去/進行中ブロックは保持し、未来の未完了作業を再生成します。保持する計画時間は作業実績ではありません。
+固定予定が進行中の作業に重なる場合は保持して警告します。自動監視は行わず、手動Refreshを利用します。
 
-次は Phase 4 の固定予定・空き時間生成ですが、活動可能時間、読み取るカレンダー、終日予定、
-現在時刻の扱いを先に決める必要があります。
-永続化を追加する段階では仕様書の第一候補である SwiftData を検討し、保存層から今回の純粋モデルへ変換します。
-作業実績と過去ブロックの保持は、Calendar の自動再配置を実運用する前に設計・実装します。
+Google Calendar API、Reminders、SwiftData、CloudKit、Siri、本格的Gantt UI、completedMinutes、priority、食事/休憩自動生成は未実装です。
+実機・visionOSは未検証。OS標準Calendarに同期済みのGoogle CalendarはEventKit経由で扱います。
+次の自動再配置では計画履歴と実績の分離、通知の集約、古い取得結果の排除、進行中競合の操作方針を決める必要があります。

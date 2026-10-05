@@ -4,17 +4,33 @@ struct ContentView: View {
     @State private var model = ScheduleViewModel()
     @State private var editor: TaskEditorRoute?
     @State private var taskToDelete: Task?
+    @State private var showsCalendarSelection = false
 
     var body: some View {
         NavigationStack {
             List {
                 Section {
-                    Label("空き時間はサンプルです。タスクを操作すると予定が自動で更新されます。", systemImage: "info.circle")
+                    Label(model.availabilityDescription, systemImage: "calendar")
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
                     Text("データはアプリ終了時に消えます。")
                         .font(.caption)
                         .foregroundStyle(.secondary)
+                    if let range = model.planningInterval {
+                        Text("対象: \(range.start.formatted(date: .abbreviated, time: .omitted)) 〜 \(range.end.addingTimeInterval(-1).formatted(date: .abbreviated, time: .omitted))")
+                            .font(.caption)
+                    }
+                    Button("使用するカレンダーを選択") { showsCalendarSelection = true }
+                    if let refreshed = model.lastCalendarRefresh {
+                        Text("最終読み込み: \(refreshed.formatted(date: .abbreviated, time: .shortened))")
+                            .font(.caption).foregroundStyle(.secondary)
+                    }
+                    if let message = model.calendarMessage { Text(message).font(.caption).foregroundStyle(.orange) }
+                    if model.protectedConflictCount > 0 {
+                        Label("進行中の作業と固定予定が重なっています。開始済みの作業は保持しています。", systemImage: "exclamationmark.triangle")
+                            .font(.caption).foregroundStyle(.orange)
+                    }
+                    if model.isLoadingCalendars { ProgressView("カレンダーを読み込み中…") }
                 }
 
                 Section("作業スケジュール") {
@@ -101,6 +117,14 @@ struct ContentView: View {
                 Button("再計算", systemImage: "arrow.clockwise") {
                     model.recalculate()
                 }
+                Button("Calendarを再読み込み", systemImage: "calendar.badge.clock") {
+                    model.refreshCalendars()
+                }
+                .disabled(model.isLoadingCalendars)
+            }
+            .task { model.loadCalendarState() }
+            .sheet(isPresented: $showsCalendarSelection) {
+                CalendarSelectionView(model: model)
             }
             .sheet(item: $editor) { route in
                 TaskEditorView(
