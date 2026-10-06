@@ -1,8 +1,9 @@
 # Phase 4.5：Google Calendar移行 実装報告
 
 2026-10-06。ブランチ: codex/google-calendar-integration。
-コード実装と合成API応答による検証は完了しています。Google CloudのOAuth設定・本人ログイン・実Calendarによる検証は残っています。
-Phase 4.5全体を実アカウント検証済みとして扱わないでください。
+コード実装と合成API応答による検証は完了しています。
+本人のCloud設定とOAuthログイン後、macOSで実Calendar一覧・選択予定取得・空き時間生成・手動Refreshを確認しました。
+実Tokenの期限切れ更新、認証後の再起動復元、iOS実機での認証は未検証です。
 
 ## 1. 変更ファイル
 
@@ -57,8 +58,10 @@ invalid_grantでは端末の認証情報を消去し、再ログインを要求�
 ローカルログアウトはKeychainと現在取得済みイベントを消去します。Google側の許可取り消しはGoogleアカウント側で行います。
 
 MacのData Protection Keychainには、アクセスグループを許可した署名・Provisioning Profileが必要です。
-アプリ用のKeychainアクセスグループとKeychain Sharing設定を追加していますが、個人のApple Teamは設定していません。
-実際の保存・再起動後の復元は、本人の署名設定とOAuthログイン後に確認する必要があります。
+アプリ用のKeychainアクセスグループとKeychain Sharing設定を追加し、本人がXcodeでPersonal Teamを設定しました。
+2026-10-06にApple Development証明書でMacビルド・署名検証が成功し、Keychainアクセスグループ、ネットワーク権限、Provisioning Profileの埋め込みを確認しました。
+本人のOAuthログインが成功し、その後のCalendar一覧・予定取得と手動RefreshでKeychainの保存・読み出し経路が成功しました。
+認証後の再起動復元と実Tokenの期限切れ更新は未検証です。更新処理は合成応答の単体テストで確認しています。
 参考: [Apple TN3137](https://developer.apple.com/documentation/technotes/tn3137-on-mac-keychains)。
 
 ## 4. 要求したGoogle権限
@@ -121,7 +124,10 @@ PKCE既知ベクトル、state/callback拒否、認証キャンセル、許可�
 API一覧・選択・pagination・401再試行・HTTP失敗、日時変換、Refresh失敗時の保持、取得中編集を検証します。
 指定例の10:00–12:00授業/14:00–16:00バイトを合成Google応答として読み、
 08:00–10:00/12:00–14:00/16:00–23:00の空き枠と300分Taskの非重複配置を確認しました。
-実Google Calendarを取得した結果ではありません。Token/データのテスト値はすべて合成です。
+この指定例は合成データによる単体テストです。Token/データのテスト値はすべて合成です。
+別途、実アプリに表示された空き枠を読み取り、既存Schedulerへ渡す一時的な検証を行いました。
+合成Task 3件・合計2,800分を8ブロックへ配置でき、枠内への配置、締切、非重複、終日予定の除外を確認しました。
+この検証ではアプリ内Taskを変更せず、実予定を含む一時スクリプトを検証後に削除しました。実予定の日時・識別子・タイトルはリポジトリへ保存していません。
 
 結果バンドル: /tmp/PersonalGantt-phase45-keychain-tests.xcresult。
 ログ: /tmp/PersonalGantt-phase45-keychain-test.log。
@@ -129,25 +135,30 @@ API一覧・選択・pagination・401再試行・HTTP失敗、日時変換、Ref
 ## 10. macOS/iOSビルド結果
 
 macOSアプリ・単体テスト成功。iOS Simulator（iPhone/iPad）ビルド成功。
-Macで未設定のGoogle設定シート・ログインの無効化・反映の無効化を画面確認しました。
-UI確認はadhocビルドで行い、実Keychain・実OAuthは確認していません。
+Macで未設定時のGoogle設定シート・操作の無効化に加え、開発署名アプリで実ログイン・Calendar反映・Refreshを画面確認しました。
 iOS画面操作・実機・visionOSは未検証。既存deployment targetは27.0のままです。
 
 iOSログ: /tmp/PersonalGantt-phase45-keychain-ios-build.log。
 MacのKeychainアクセスグループ追加後は署名無しのビルド/テストで確認しました。
 adhoc署名ビルドは、Keychainに開発証明書が必要なためXcodeの署名検証で失敗します（/tmp/PersonalGantt-phase45-keychain-build.log）。
-実認証には本人のApple Teamによる署名・Provisioning Profileが必要です。
+本人のApple Team設定後、Macの開発署名ビルドと署名検証も成功しました（/tmp/PersonalGantt-phase45-development-build.log）。
+iOS/visionOS実機用Profileは端末未登録のため未作成です。Macでの実OAuth・Keychain保存・読み出しは成功しました。
 
 ## 11. 実Google Calendarの確認結果
 
-未実施です。本人がCloudプロジェクト作成とCalendar APIの有効化・OAuth設定を進めています。
-OAuth Client IDと本人ログインが未完了のため、実データの取得成功とは報告しません。
-docs/GoogleOAuthSetup.mdにCloud設定、アプリ設定、実データを避ける配置の確認手順を用意しました。
-実アカウントによるログイン・Refresh・指定例・予定変更後の再計算・Token再起動復元が残っています。
+本人がCalendar API、読み取り専用スコープ、OAuthクライアント、Appleの開発署名を設定し、Googleへのログインと許可を完了しました。
+実Calendar一覧から複数選択して反映でき、選択したCalendarの固定予定がアプリへ取り込まれました。
+通常予定で空き枠が分割され、終日予定の日には空き枠が生成されないことを画面で確認しました。
+アプリ内の既存Taskが取得後の枠へ配置され、進行中のブロックは保持されました。手動Refreshも成功し、最終読み込み時刻が更新されました。
+さらに、表示された実空き枠を既存Schedulerへ渡す検証で、合成Taskの複数日配置が固定予定を避けることを確認しました。
+指定の授業・バイト例は合成テストで確認済みです。本人のGoogle Calendarへ確認用予定の作成・編集・削除は行っていません。
+実予定をGoogle側で変更した後の差分反映、実Tokenの期限切れ更新、認証後の再起動復元は未検証です。
+Cloud設定とアプリ設定の手順はdocs/GoogleOAuthSetup.mdにあります。
 
 ## 12. Gitへ秘密情報が含まれていないこと
 
-実Token、Client Secret、実Calendarデータは取得・保存・追加していません。OAuth Client IDも実値は埋め込みません。
+実Token、Client Secret、実CalendarデータはGitへ追加していません。OAuth Client IDも実値は埋め込みません。
+実認証情報は端末のKeychain、実Calendarデータは動作中のアプリのメモリで扱います。実データ検証用の一時スクリプトは削除しました。
 TokenはKeychainのみ、Calendarスナップショットはメモリのみです。アプリに認証情報を出すログ処理はありません。
 URLSessionはephemeral、cache/cookieなし、redirect拒否。TokenはAuthorizationヘッダーに入れ、API URLへ載せません。
 UIエラーは固定の既知メッセージだけを使い、Googleの応答bodyや認証URLを表示しません。
@@ -162,7 +173,9 @@ EventKit自体は削除せず、Reminders/ReminderIdentityを別の責務とし�
 Task.reminderIdentifierはPersonalGantt側に保存するための任意フィールドです。想定所要時間はPersonalGantt側のままです。
 旧Task JSONにidentifierがなくても読め、編集・完了切替で関連IDを維持します。
 
-Remindersへ進む前に実OAuth・Keychain・実Calendar取得を確認する必要があります。
-その後、Reminder識別子変化/削除、締切なし・日付だけの締切、複数リスト選択、Taskとの対応を決めます。
+実OAuth・Keychain保存/読み出し・実Calendar取得の基本経路は確認済みです。
+残る実環境検証は認証後の再起動復元、Tokenの期限切れ更新、Google側の予定変更後のRefresh、iOS実機です。
+Calendar選択はメモリ内のため再起動すると解除されます。選択の保存方法とTaskの所要時間・Reminder関連IDの保存方法を決める必要があります。
+Reminder識別子変化/削除、締切なし・日付だけの締切、複数リスト選択、Taskとの対応も決めます。
 Remindersの権限・取得・Task変換・所要時間メタデータはCalendarとは別のServiceへ実装する方針です。
 Siri、Google予定書き込み、CloudKit、本格的Gantt、自動常時監視、completedMinutesは今回実装していません。

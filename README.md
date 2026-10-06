@@ -2,7 +2,7 @@
 
 名前・所要時間・締切から、空き時間へTaskを配置するSwiftUIアプリです。
 Phase 4.5で予定の取得元をGoogle Calendar APIへ切り替えました。
-コード実装・合成データ検証済みで、本人のOAuth設定と実Google Calendar検証が残っています。
+コード実装・合成データ検証に加え、本人のOAuthログインと実Google Calendarの取得・空き時間生成・手動RefreshをmacOSで確認済みです。
 
 ## 起動とGoogle設定
 
@@ -48,7 +48,9 @@ Task.reminderIdentifierだけを関連付け準備として追加し、想定所
 
 2026-10-06、全153ケース成功（既存100 + 追加53）。
 macOSアプリ・単体テスト、iOS Simulatorビルドが成功しています。
-MacのGoogle設定画面を確認しました。実OAuth・実Keychain保存・実Calendar取得・iOS実機は未検証です。
+Apple Development署名のMacアプリで、実OAuth、Keychain保存・読み出し、複数Calendar選択、実予定取得、手動Refreshを確認しました。
+表示された実予定からの空き枠を既存Schedulerへ渡し、合成Taskの複数日配置も確認しました。
+iOS実機、認証後の再起動復元、実Tokenの期限切れ更新は未検証です。
 合成Google応答による「10–12授業、14–16バイト → 08–10/12–14/16–23空き枠」とTask配置を検証済みです。
 
 単体テスト:
