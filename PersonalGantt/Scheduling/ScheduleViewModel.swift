@@ -10,12 +10,13 @@ final class ScheduleViewModel {
     private(set) var calendars: [CalendarSource] = []
     private(set) var selectedCalendarIDs: Set<String> = []
     private(set) var fixedEvents: [FixedEvent] = []
-    private(set) var calendarAuthorization: CalendarAuthorization = .notDetermined
+    private(set) var calendarAuthorization: CalendarAuthorization = .signedOut
     private(set) var calendarMessage: String?
     private(set) var isLoadingCalendars = false
     private(set) var lastCalendarRefresh: Date?
     private(set) var planningInterval: DateInterval?
     private(set) var protectedConflictCount = 0
+    private(set) var googleClientID = ""
 
     @ObservationIgnored private var calendarProvider: (any CalendarProviding)?
     @ObservationIgnored private var activitySettings = ActivitySettings.default
@@ -31,7 +32,9 @@ final class ScheduleViewModel {
 
     convenience init() {
         let sample = SampleSchedule.make()
-        self.init(tasks: sample.tasks, calendarProvider: CalendarService())
+        let clientID = UserDefaults.standard.string(forKey: "googleOAuthClientID") ?? ""
+        self.init(tasks: sample.tasks, calendarProvider: GoogleCalendarService.live(clientID: clientID))
+        googleClientID = clientID
     }
 
     convenience init(
@@ -51,7 +54,7 @@ final class ScheduleViewModel {
             availableSlots = try AvailabilityService().availableSlots(fixedEvents: [], settings: activitySettings, referenceDate: now, calendar: calendar)
             recalculate()
         } catch {
-            calendarMessage = error.localizedDescription
+            calendarMessage = safeMessage(error)
         }
     }
 
@@ -78,10 +81,10 @@ final class ScheduleViewModel {
     }
 
     /// Only inspect existing authorization at launch; never prompt automatically.
-    func loadCalendarState() {
+    func loadCalendarState() async {
         guard let calendarProvider else { return }
         calendarAuthorization = calendarProvider.authorization
-        if calendarAuthorization == .fullAccess { refreshCalendars() }
+        if calendarAuthorization == .connected { await refreshCalendars() }
     }
 
     func requestCalendarAccess() async {
@@ -90,60 +93,64 @@ final class ScheduleViewModel {
         defer { isLoadingCalendars = false }
         do {
             calendarAuthorization = try await calendarProvider.requestAccess()
-            guard calendarAuthorization == .fullAccess else {
+            guard calendarAuthorization == .connected else {
                 calendarMessage = calendarAuthorization.description
                 return
             }
-            try readCalendarSnapshot(selection: selectedCalendarIDs)
+            try await readCalendarSnapshot(selection: selectedCalendarIDs)
         } catch {
             calendarAuthorization = calendarProvider.authorization
-            calendarMessage = "読み込みに失敗しました。現在の予定を保持します。\n\(error.localizedDescription)"
+            calendarMessage = "読み込みに失敗しました。現在の予定を保持します。\n\(safeMessage(error))"
         }
     }
 
-    func refreshCalendars() {
+    func refreshCalendars() async {
         guard let calendarProvider, !isLoadingCalendars else { return }
         isLoadingCalendars = true
         defer { isLoadingCalendars = false }
         calendarAuthorization = calendarProvider.authorization
-        guard calendarAuthorization == .fullAccess else {
+        guard calendarAuthorization == .connected else {
             calendarMessage = calendarAuthorization.description + " 現在の予定を保持しています。"
             return
         }
-        do { try readCalendarSnapshot(selection: selectedCalendarIDs) }
-        catch { calendarMessage = "読み込みに失敗しました。現在の予定を保持します。\n\(error.localizedDescription)" }
+        do { try await readCalendarSnapshot(selection: selectedCalendarIDs) }
+        catch {
+            calendarAuthorization = calendarProvider.authorization
+            calendarMessage = "読み込みに失敗しました。現在の予定を保持します。\n\(safeMessage(error))"
+        }
     }
 
     @discardableResult
-    func applyCalendarSelection(_ selection: Set<String>) -> Bool {
+    func applyCalendarSelection(_ selection: Set<String>) async -> Bool {
         guard let calendarProvider, !isLoadingCalendars else { return false }
         calendarAuthorization = calendarProvider.authorization
-        guard calendarAuthorization == .fullAccess else {
+        guard calendarAuthorization == .connected else {
             calendarMessage = calendarAuthorization.description
             return false
         }
         isLoadingCalendars = true
         defer { isLoadingCalendars = false }
         do {
-            try readCalendarSnapshot(selection: selection)
+            try await readCalendarSnapshot(selection: selection)
             return true
         } catch {
-            calendarMessage = "読み込みに失敗しました。現在の予定を保持します。\n\(error.localizedDescription)"
+            calendarAuthorization = calendarProvider.authorization
+            calendarMessage = "読み込みに失敗しました。現在の予定を保持します。\n\(safeMessage(error))"
             return false
         }
     }
 
     /// Publish only after calendar lookup, event lookup, and availability all succeed.
-    private func readCalendarSnapshot(selection: Set<String>) throws {
+    private func readCalendarSnapshot(selection: Set<String>) async throws {
         guard let calendarProvider else { return }
         let now = clock()
         let range = try AvailabilityService().planningInterval(referenceDate: now, settings: activitySettings, calendar: calendar)
-        let sources = try calendarProvider.loadCalendars()
+        let sources = try await calendarProvider.loadCalendars()
         let effectiveIDs = selection.intersection(Set(sources.map(\.id)))
-        let events = effectiveIDs.isEmpty ? [] : try calendarProvider.loadEvents(in: range, calendarIDs: effectiveIDs)
+        let events = effectiveIDs.isEmpty ? [] : try await calendarProvider.loadEvents(in: range, calendarIDs: effectiveIDs)
             .filter { effectiveIDs.contains($0.calendarID) && !$0.isCancelled }
         let slots = try AvailabilityService().availableSlots(fixedEvents: events, settings: activitySettings, referenceDate: now, calendar: calendar)
-        let nextResult = ScheduleReplanner().schedule(tasks: tasks, availableSlots: slots, previousBlocks: result.blocks, now: now)
+        let nextResult = ScheduleReplanner().schedule(tasks: tasks, availableSlots: slots, previousBlocks: result.blocks, now: clock())
         calendars = sources
         selectedCalendarIDs = effectiveIDs
         fixedEvents = events
@@ -152,7 +159,52 @@ final class ScheduleViewModel {
         result = nextResult
         lastCalendarRefresh = now
         calendarMessage = effectiveIDs == selection ? nil : "利用できなくなったカレンダーを選択から除外しました。"
-        updateProtectedConflicts(now: now)
+        calendarAuthorization = calendarProvider.authorization
+        updateProtectedConflicts(now: clock())
+    }
+
+    @discardableResult
+    func configureGoogleClientID(_ input: String) -> Bool {
+        guard !isLoadingCalendars else { return false }
+        let clientID = input.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard GoogleOAuthConfiguration(clientID: clientID).isValid else {
+            calendarMessage = GoogleCalendarError.configuration.localizedDescription
+            return false
+        }
+        guard calendarAuthorization != .connected else {
+            calendarMessage = "クライアントIDを変更する前にGoogleからログアウトしてください。"
+            return false
+        }
+        googleClientID = clientID
+        UserDefaults.standard.set(clientID, forKey: "googleOAuthClientID")
+        calendarProvider = GoogleCalendarService.live(clientID: clientID)
+        calendarAuthorization = calendarProvider?.authorization ?? .signedOut
+        calendarMessage = nil
+        return true
+    }
+
+    func disconnectGoogle() {
+        guard !isLoadingCalendars, let provider = calendarProvider as? GoogleCalendarService else { return }
+        do {
+            try provider.disconnect()
+            calendarAuthorization = provider.authorization
+            calendars = []
+            selectedCalendarIDs = []
+            fixedEvents = []
+            lastCalendarRefresh = nil
+            let now = clock()
+            planningInterval = try AvailabilityService().planningInterval(referenceDate: now, settings: activitySettings, calendar: calendar)
+            availableSlots = try AvailabilityService().availableSlots(fixedEvents: [], settings: activitySettings, referenceDate: now, calendar: calendar)
+            recalculate()
+            calendarMessage = "端末のGoogle認証情報を削除しました。活動可能時間のみで配置しています。"
+        } catch { calendarMessage = safeMessage(error) }
+    }
+
+    private func safeMessage(_ error: Error) -> String {
+        if let known = error as? GoogleCalendarError { return known.localizedDescription }
+        if let known = error as? CalendarServiceError { return known.localizedDescription }
+        if let known = error as? AvailabilityError { return known.localizedDescription }
+        return "読み込みに失敗しました。現在の予定を保持します。"
     }
 
     private func updateProtectedConflicts(now: Date) {

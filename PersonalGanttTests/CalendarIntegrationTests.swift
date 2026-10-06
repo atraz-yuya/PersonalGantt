@@ -13,12 +13,12 @@ struct CalendarIntegrationTests {
         event.startDate = date(9)
         event.endDate = date(10)
         event.timeZone = TimeZone(secondsFromGMT: 0)
-        let fixed = try #require(CalendarService.fixedEvent(from: event, calendarID: "work"))
+        let fixed = try #require(LegacyEventKitCalendarFixture.fixedEvent(from: event, calendarID: "work"))
         #expect(fixed.title == "会議")
         #expect(fixed.start == date(9))
         #expect(fixed.end == date(10))
         #expect(!fixed.isAllDay)
-        #expect(CalendarService.fixedEvent(from: event, calendarID: "work")?.id == fixed.id)
+        #expect(LegacyEventKitCalendarFixture.fixedEvent(from: event, calendarID: "work")?.id == fixed.id)
         let slots = try AvailabilityService().availableSlots(fixedEvents: [fixed], referenceDate: date(0), calendar: utc)
         let first = task(1, minutes: 90, deadline: date(12))
         let second = task(2, minutes: 120, deadline: date(15))
@@ -48,7 +48,7 @@ struct CalendarIntegrationTests {
         // Set the timed interval first: assigning an end date to an already-all-day
         // EKEvent treats that end date's day as inclusive (23:59:59 on macOS).
         event.isAllDay = true
-        let first = try #require(CalendarService.fixedEvent(from: event, calendarID: "work"))
+        let first = try #require(LegacyEventKitCalendarFixture.fixedEvent(from: event, calendarID: "work"))
         #expect(first.isAllDay)
         let slots = try AvailabilityService().availableSlots(fixedEvents: [first], referenceDate: localDate(0, day: 6), calendar: localCalendar)
         #expect(try slots.first?.start == localDate(8, day: 7))
@@ -57,29 +57,29 @@ struct CalendarIntegrationTests {
         event.startDate = try localDate(0, day: 7)
         event.endDate = try localDate(0, day: 8)
         event.isAllDay = true
-        let second = try #require(CalendarService.fixedEvent(from: event, calendarID: "work"))
+        let second = try #require(LegacyEventKitCalendarFixture.fixedEvent(from: event, calendarID: "work"))
         #expect(first.id != second.id)
     }
 
     @Test func unsavedInvalidEventIsNotImported() {
         let store = EKEventStore()
         let event = EKEvent(eventStore: store)
-        #expect(CalendarService.fixedEvent(from: event, calendarID: "work") == nil)
+        #expect(LegacyEventKitCalendarFixture.fixedEvent(from: event, calendarID: "work") == nil)
         event.startDate = date(10)
         event.endDate = date(9)
-        #expect(CalendarService.fixedEvent(from: event, calendarID: "work") == nil)
+        #expect(LegacyEventKitCalendarFixture.fixedEvent(from: event, calendarID: "work") == nil)
     }
 
-    @Test func selectedCalendarFiltersEventsAndRebuildsFuturePlan() {
+    @Test func selectedCalendarFiltersEventsAndRebuildsFuturePlan() async {
         let provider = FakeCalendarProvider()
         provider.events = [event("work", 8, 9), event("personal", 9, 12)]
         let model = makeModel(provider)
         #expect(model.result.blocks.first?.start == date(8))
         #expect(model.selectedCalendarIDs.isEmpty)
-        model.loadCalendarState()
+        await model.loadCalendarState()
         #expect(provider.requestedIDs.isEmpty)
         #expect(model.calendars.count == 2)
-        #expect(model.applyCalendarSelection(["work"]))
+        #expect(await model.applyCalendarSelection(["work"]))
         #expect(model.selectedCalendarIDs == ["work"])
         #expect(model.fixedEvents == [event("work", 8, 9)])
         #expect(model.result.blocks.first?.start == date(9))
@@ -88,85 +88,85 @@ struct CalendarIntegrationTests {
         #expect(provider.requestedRanges.last == DateInterval(start: date(0), end: date(0, day: 20)))
     }
 
-    @Test func emptySelectionClearsEventsAndNeverQueriesAllCalendars() {
+    @Test func emptySelectionClearsEventsAndNeverQueriesAllCalendars() async {
         let provider = FakeCalendarProvider()
         provider.events = [event("work", 8, 9)]
         let model = makeModel(provider)
-        #expect(model.applyCalendarSelection(["work"]))
-        #expect(model.applyCalendarSelection([]))
+        #expect(await model.applyCalendarSelection(["work"]))
+        #expect(await model.applyCalendarSelection([]))
         #expect(model.fixedEvents.isEmpty)
         #expect(model.selectedCalendarIDs.isEmpty)
         #expect(model.result.blocks.first?.start == date(8))
         #expect(provider.requestedIDs == [Set(["work"])])
     }
 
-    @Test func refreshPicksUpChangedEventsAndPreservesSelection() {
+    @Test func refreshPicksUpChangedEventsAndPreservesSelection() async {
         let provider = FakeCalendarProvider()
         provider.events = [event("work", 8, 9)]
         let model = makeModel(provider)
-        #expect(model.applyCalendarSelection(["work"]))
+        #expect(await model.applyCalendarSelection(["work"]))
         provider.events = [event("work", 8, 12)]
-        model.refreshCalendars()
+        await model.refreshCalendars()
         #expect(model.selectedCalendarIDs == ["work"])
         #expect(model.result.blocks.first?.start == date(12))
         #expect(model.result.blocks.first?.end == date(14))
         #expect(model.lastCalendarRefresh == date(0))
     }
 
-    @Test func failedReadDoesNotPartiallyReplaceSelectionOrPlan() {
+    @Test func failedReadDoesNotPartiallyReplaceSelectionOrPlan() async {
         let provider = FakeCalendarProvider()
         provider.events = [event("work", 8, 9)]
         let model = makeModel(provider)
-        #expect(model.applyCalendarSelection(["work"]))
+        #expect(await model.applyCalendarSelection(["work"]))
         let before = model.result
         let oldSlots = model.availableSlots
         let oldEvents = model.fixedEvents
         provider.failEvents = true
-        #expect(!model.applyCalendarSelection(["personal"]))
+        #expect(!(await model.applyCalendarSelection(["personal"])))
         #expect(model.selectedCalendarIDs == ["work"])
         #expect(model.result == before)
         #expect(model.availableSlots == oldSlots)
         #expect(model.fixedEvents == oldEvents)
         #expect(model.calendarMessage != nil)
         provider.failCalendars = true
-        model.refreshCalendars()
+        await model.refreshCalendars()
         #expect(model.result == before)
     }
 
-    @Test func removedCalendarIsPrunedWithNotice() {
+    @Test func removedCalendarIsPrunedWithNotice() async {
         let provider = FakeCalendarProvider()
         provider.events = [event("work", 8, 9)]
         let model = makeModel(provider)
-        #expect(model.applyCalendarSelection(["work"]))
+        #expect(await model.applyCalendarSelection(["work"]))
         provider.sources.removeAll { $0.id == "work" }
-        model.refreshCalendars()
+        await model.refreshCalendars()
         #expect(model.selectedCalendarIDs.isEmpty)
         #expect(model.fixedEvents.isEmpty)
         #expect(model.result.blocks.first?.start == date(8))
         #expect(model.calendarMessage != nil)
     }
 
-    @Test func cancelledOrUnselectedOccurrencesDoNotAffectPlan() {
+    @Test func cancelledOrUnselectedOccurrencesDoNotAffectPlan() async {
         let provider = FakeCalendarProvider()
         var cancelled = event("work", 8, 23)
         cancelled.isCancelled = true
         provider.events = [cancelled, event("personal", 8, 23)]
         let model = makeModel(provider)
-        #expect(model.applyCalendarSelection(["work"]))
+        #expect(await model.applyCalendarSelection(["work"]))
         #expect(model.fixedEvents.isEmpty)
         #expect(model.result.blocks.first?.start == date(8))
     }
 
     @Test func explicitAccessRequestLoadsSourcesAfterGrant() async {
         let provider = FakeCalendarProvider()
-        provider.authorization = .notDetermined
+        provider.authorization = .signedOut
         let model = makeModel(provider)
-        model.loadCalendarState()
+        await model.loadCalendarState()
         #expect(provider.accessRequests == 0)
         #expect(provider.calendarLoads == 0)
         await model.requestCalendarAccess()
         #expect(provider.accessRequests == 1)
-        #expect(model.calendarAuthorization == .fullAccess)
+        #expect(model.calendarAuthorization == .connected)
         #expect(model.calendars.count == 2)
         #expect(model.selectedCalendarIDs.isEmpty)
         #expect(provider.requestedIDs.isEmpty)
@@ -174,7 +174,7 @@ struct CalendarIntegrationTests {
 
     @Test func denyingAccessKeepsProvisionalPlanAndDoesNotReadEvents() async {
         let provider = FakeCalendarProvider()
-        provider.authorization = .notDetermined
+        provider.authorization = .signedOut
         provider.nextAuthorization = .denied
         let model = makeModel(provider)
         let before = model.result
@@ -186,34 +186,34 @@ struct CalendarIntegrationTests {
         #expect(provider.requestedIDs.isEmpty)
     }
 
-    @Test(arguments: [CalendarAuthorization.denied, .restricted, .writeOnly])
-    func insufficientAuthorizationDoesNotReadOrEraseSnapshot(status: CalendarAuthorization) {
+    @Test(arguments: [CalendarAuthorization.denied, .restricted, .insufficientScope])
+    func insufficientAuthorizationDoesNotReadOrEraseSnapshot(status: CalendarAuthorization) async {
         let provider = FakeCalendarProvider()
         provider.events = [event("work", 8, 9)]
         let model = makeModel(provider)
-        #expect(model.applyCalendarSelection(["work"]))
+        #expect(await model.applyCalendarSelection(["work"]))
         let before = model.result
         let reads = provider.calendarLoads
         provider.authorization = status
-        model.refreshCalendars()
-        #expect(!model.applyCalendarSelection(["personal"]))
+        await model.refreshCalendars()
+        #expect(!(await model.applyCalendarSelection(["personal"])))
         #expect(model.calendarAuthorization == status)
         #expect(model.result == before)
         #expect(model.selectedCalendarIDs == ["work"])
         #expect(provider.calendarLoads == reads)
     }
 
-    @Test func begunBlocksSurviveRefreshAndConflictsAreReported() {
+    @Test func begunBlocksSurviveRefreshAndConflictsAreReported() async {
         let provider = FakeCalendarProvider()
         let clock = TestClock(date: date(0))
         let first = task(1, minutes: 120, deadline: date(22))
         let second = task(2, minutes: 60, deadline: date(23))
         let model = ScheduleViewModel(tasks: [first, second], calendarProvider: provider, calendar: utc, clock: { clock.date })
-        #expect(model.applyCalendarSelection(["work"]))
+        #expect(await model.applyCalendarSelection(["work"]))
         let current = model.result.blocks[0]
         clock.date = date(9)
         provider.events = [event("work", 8, 12)]
-        model.refreshCalendars()
+        await model.refreshCalendars()
         #expect(model.result.blocks.contains(current))
         #expect(model.result.blocks.first { $0.taskID == second.id }?.start == date(12))
         #expect(model.protectedConflictCount == 1)
@@ -223,10 +223,10 @@ struct CalendarIntegrationTests {
         #expect(model.tasks == [second])
     }
 
-    @Test func taskChangesUseSnapshotWithoutAdditionalCalendarReads() throws {
+    @Test func taskChangesUseSnapshotWithoutAdditionalCalendarReads() async throws {
         let provider = FakeCalendarProvider()
         let model = makeModel(provider)
-        #expect(model.applyCalendarSelection(["work"]))
+        #expect(await model.applyCalendarSelection(["work"]))
         let reads = provider.calendarLoads
         let added = try model.addTask(TaskDraft(title: "追加", estimatedMinutesText: "60", deadline: date(23)))
         model.toggleCompletion(id: added.id)
@@ -268,8 +268,8 @@ private final class TestClock {
 
 @MainActor
 private final class FakeCalendarProvider: CalendarProviding {
-    var authorization: CalendarAuthorization = .fullAccess
-    var nextAuthorization: CalendarAuthorization = .fullAccess
+    var authorization: CalendarAuthorization = .connected
+    var nextAuthorization: CalendarAuthorization = .connected
     var sources = [CalendarSource(id: "work", title: "仕事", accountTitle: "テスト"), CalendarSource(id: "personal", title: "個人", accountTitle: "テスト")]
     var events: [FixedEvent] = []
     var failCalendars = false

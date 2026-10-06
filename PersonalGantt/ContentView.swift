@@ -117,12 +117,12 @@ struct ContentView: View {
                 Button("再計算", systemImage: "arrow.clockwise") {
                     model.recalculate()
                 }
-                Button("Calendarを再読み込み", systemImage: "calendar.badge.clock") {
-                    model.refreshCalendars()
+                Button("Google Calendarを再読み込み", systemImage: "calendar.badge.clock") {
+                    _Concurrency.Task { await model.refreshCalendars() }
                 }
                 .disabled(model.isLoadingCalendars)
             }
-            .task { model.loadCalendarState() }
+            .task { await model.loadCalendarState() }
             .sheet(isPresented: $showsCalendarSelection) {
                 CalendarSelectionView(model: model)
             }
