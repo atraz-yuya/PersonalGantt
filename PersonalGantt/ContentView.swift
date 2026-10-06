@@ -12,7 +12,7 @@ struct ContentView: View {
     #if os(macOS)
     @State private var applicationIsActive = NSApplication.shared.isActive
     #endif
-    @State private var model = ScheduleViewModel()
+    @Bindable var model: ScheduleViewModel
     @State private var editor: TaskEditorRoute?
     @State private var detail: TaskDetailRoute?
     @State private var editorAfterDetail: TaskEditorRoute?
@@ -188,4 +188,4 @@ private struct TaskEditorRoute: Identifiable {
 }
 private struct TaskDetailRoute: Identifiable { let id: UUID }
 
-#Preview { ContentView() }
+#Preview { ContentView(model: ScheduleViewModel(tasks: [], availableSlots: [])) }

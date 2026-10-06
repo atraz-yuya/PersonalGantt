@@ -1,6 +1,6 @@
 import Foundation
 
-nonisolated struct AvailableSlot: Identifiable, Equatable, Sendable {
+nonisolated struct AvailableSlot: Identifiable, Codable, Equatable, Sendable {
     let id: UUID
     var start: Date
     var end: Date

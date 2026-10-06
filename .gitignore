@@ -12,3 +12,6 @@ PrivateVerification/
 
 # Device-local Reminder associations and requirements
 ReminderMetadata.json
+
+# Device-local SwiftData checkpoint and SQLite sidecars
+LocalPlan.store*

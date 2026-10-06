@@ -28,6 +28,16 @@ struct IntegrationStatusView: View {
                 if let message = reminders.message { Text(message).font(.caption).foregroundStyle(.orange) }
             }
             if let message = model.calendarMessage { Text(message).font(.caption).foregroundStyle(.orange) }
+            if let message = model.persistenceMessage {
+                Text(message).font(.caption).foregroundStyle(.orange)
+                if !model.isPlanStorageBlocked {
+                    Button("保存を再試行") { model.retryPlanSave() }
+                }
+            }
+            if model.tasks.contains(where: { model.isReminderTask($0.id) && model.taskIsBusy($0.id) }) {
+                Text("保存済みのReminders Taskを表示しています。編集・完了操作にはRemindersの再読み込みが必要です。")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
             if model.protectedConflictCount > 0 {
                 Label("開始済みの作業と固定予定が重なっています。時間枠を保持しています。", systemImage: "exclamationmark.triangle")
                     .font(.caption).foregroundStyle(.orange)
@@ -44,7 +54,10 @@ struct IntegrationStatusView: View {
                     if let date = model.reminders?.lastRefresh {
                         Text("Reminders最終取得: \(date.formatted(date: .abbreviated, time: .shortened))")
                     }
-                    Text("連携TaskはRemindersから復元します。所要時間と選択はこの端末に保存します。手動Taskと計画履歴はアプリ終了時に消えます。")
+                    if let date = model.lastPlanSave {
+                        Text("端末内の最終保存: \(date.formatted(date: .abbreviated, time: .shortened))")
+                    }
+                    Text("手動Task・計画・開始済みの時間枠をこの端末に保存します。履歴は自動削除しません。連携Taskは前回の表示を復元し、再取得後に更新します。端末間同期は未対応です。")
                 }.font(.caption).foregroundStyle(.secondary)
             }.font(.caption)
         }.padding(.horizontal).padding(.vertical, 10)

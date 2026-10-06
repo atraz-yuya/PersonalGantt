@@ -9,9 +9,18 @@ import SwiftUI
 
 @main
 struct PersonalGanttApp: App {
+    @State private var model = ScheduleViewModel()
+
     var body: some Scene {
-        WindowGroup {
-            ContentView()
+        #if os(macOS)
+        // One editor owns the device checkpoint; reopening a window retains its model.
+        Window("PersonalGantt", id: "main") {
+            ContentView(model: model)
         }
+        #else
+        WindowGroup {
+            ContentView(model: model)
+        }
+        #endif
     }
 }

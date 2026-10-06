@@ -59,17 +59,20 @@ iPhoneなどコンパクト幅は「今日 / 日別 / タスク」のタブで�
 | 入力 | title、1分以上の整数estimatedMinutes、deadline。開始/終了はSchedulerが決める。 |
 | 失敗 | 取得・権限・不正応答の失敗は直前の結果を保持し理由を表示。 |
 | Refresh | 起動・前面復帰・前面中の日付切替・選択反映・手動RefreshでGoogleを取得。Task操作は取得済み枠を利用。 |
-| 保存 | Calendar選択IDはUserDefaults、認証TokenはKeychain。Reminderとの関連付け・所要時間・補完締切・除外はSandbox内のJSON。手動Task・計画・実予定はメモリ内のみ。 |
+| 保存 | Calendar選択IDはUserDefaults、認証TokenはKeychain。Reminderとの関連付け・所要時間・補完締切・除外はSandbox内のJSON。手動Task・計画・開始済みの履歴と前回の予定表示は端末内SwiftData。 |
 
-起動時にサンプルTaskは作らず、保存した選択でRemindersを取得し、所要時間設定からTaskを復元します。
-Google Calendar取得までは活動時間のみの仮配置です。
-最初の取得成功時に仮配置を置き換え、その後の更新では開始済みの計画を保護します。
+起動時に前回のTask・計画を読み戻してから、保存した選択でGoogle/Remindersを取得します。
+取得失敗時も前回の計画を保持します。復元したReminders Taskの変更は、元データの再取得を待ちます。
+保存データがない初回は活動時間のみの仮配置です。
+開始済みの計画は再起動後も保護し、未来の未完了作業だけを再配置します。履歴は自動削除しません。
+「接続状況と保存」で最終保存時刻を確認できます。保存失敗時は警告と「保存を再試行」を表示します。
+読み込めない保存データは上書きしません。CloudKitによる端末間同期は次の段階です。
 開始済みと新しい固定予定が衝突すれば保持して警告します。保持時間は実際の作業完了記録ではありません。
 対応OS設定はmacOS/iOS/visionOS 27.0のままです。
 
 ## 検証
 
-2026-10-07、全261ケース成功（Phase 6の242 + Phase 7の追加19、パラメータ展開後）。
+2026-10-07、全283ケース成功（Phase 7の261 + Phase 8前半の追加22、パラメータ展開後）。
 macOSアプリ・単体テスト、iOS Simulatorビルドが成功しています。
 Apple Development署名のMacアプリで、実OAuth、Keychain保存・読み出し、複数Calendar選択、実予定取得、手動Refreshを確認しました。
 表示された実予定からの空き枠を既存Schedulerへ渡し、合成Taskの複数日配置も確認しました。
@@ -77,6 +80,7 @@ iOS実機は未検証です。Phase 5では認証と選択の再起動復元、�
 合成Google応答による「10–12授業、14–16バイト → 08–10/12–14/16–23空き枠」とTask配置を検証済みです。
 Phase 6では実Remindersの入力待ち→60分設定→Google予定回避配置、両アプリ間の完了/未完了、再起動復元、配置解除を確認済みです。
 Phase 7ではMacでToday・Gantt・詳細・編集・完了・日別移動を実確認済みです。iPhone/iPadの画面・実機確認は残っています。
+Phase 8前半ではMacでTask追加・編集・完了・削除後の終了/再起動復元を実確認済みです。CloudKit同期は後続です。
 
 単体テスト:
 
@@ -89,7 +93,7 @@ iOSコンパイル:
 ## 未実装と報告
 
 Googleへの予定書き込み、Reminderの新規作成・削除・タイトル/締切の書き込み、Siri専用機能、CloudKit、複数日Gantt・ズーム・ドラッグ操作、常時バックグラウンド監視、completedMinutesは未実装です。
-所要時間設定のデバイス間同期、手動Taskと計画履歴の保存は今後の課題です。
+所要時間設定と手動Taskのデバイス間同期は今後の課題です。端末内の保存・復元はPhase 8前半で追加しました。
 EventKit Calendarの取得・権限要求は削除済みです。EventKitはReminders専用サービスと旧Calendar変換の合成テストで使用します。
 認証情報・個人データはGitへ追加しません。
 
@@ -97,6 +101,7 @@ EventKit Calendarの取得・権限要求は削除済みです。EventKitはRemi
 - [Phase 5の変更ファイル・更新タイミング・検証・残課題](docs/Phase5.md)
 - [Phase 6の変更ファイル・Reminders権限・同期・実検証・残課題](docs/Phase6.md)
 - [Phase 7の画面構成・変更ファイル・検証・残課題](docs/Phase7.md)
+- [Phase 8前半の端末内保存・復元・検証・同期の課題](docs/Phase8.md)
 - [Google OAuth設定手順](docs/GoogleOAuthSetup.md)
 - [Phase 4の履歴](docs/Phase4.md)
 - [Phase 3の履歴](docs/Phase3.md)

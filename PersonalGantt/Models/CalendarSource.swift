@@ -1,6 +1,6 @@
 import Foundation
 
-nonisolated struct CalendarSource: Identifiable, Equatable, Sendable {
+nonisolated struct CalendarSource: Identifiable, Codable, Equatable, Sendable {
     let id: String
     let title: String
     let accountTitle: String
