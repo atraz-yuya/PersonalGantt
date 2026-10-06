@@ -1,3 +1,11 @@
 xcuserdata/
 *.xcuserstate
 DerivedData/
+# Local OAuth configuration and private verification data
+GoogleOAuth.local.*
+client_secret*.json
+GoogleService-Info.plist
+.env
+.env.*
+PrivateVerification/
+*.xcresult/

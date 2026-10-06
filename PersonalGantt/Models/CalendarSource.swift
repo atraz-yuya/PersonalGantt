@@ -7,15 +7,15 @@ nonisolated struct CalendarSource: Identifiable, Equatable, Sendable {
 }
 
 nonisolated enum CalendarAuthorization: Equatable, Sendable {
-    case notDetermined, fullAccess, writeOnly, denied, restricted
+    case signedOut, connected, insufficientScope, denied, restricted
 
     var description: String {
         switch self {
-        case .notDetermined: "カレンダーへのアクセスは未許可です。"
-        case .fullAccess: "カレンダーを読み取れます。"
-        case .writeOnly: "イベントの読み取りにはフルアクセスが必要です。"
-        case .denied: "アクセスが拒否されています。OSの設定でカレンダーへのアクセスを許可してください。"
-        case .restricted: "OSの制限によりカレンダーへアクセスできません。"
+        case .signedOut: "Google Calendarにログインしていません。"
+        case .connected: "Google Calendarの読み取りに接続しています。"
+        case .insufficientScope: "Google Calendarの読み取り権限が不足しています。"
+        case .denied: "Google Calendarの読み取りが許可されていません。再ログインしてください。"
+        case .restricted: "Google Calendarへのアクセスが制限されています。"
         }
     }
 }

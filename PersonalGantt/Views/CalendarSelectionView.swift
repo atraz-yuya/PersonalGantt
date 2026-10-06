@@ -4,71 +4,81 @@ struct CalendarSelectionView: View {
     @Environment(\.dismiss) private var dismiss
     @Bindable var model: ScheduleViewModel
     @State private var selection: Set<String>
+    @State private var clientID: String
 
     init(model: ScheduleViewModel) {
         self.model = model
         _selection = State(initialValue: model.selectedCalendarIDs)
+        _clientID = State(initialValue: model.googleClientID)
     }
 
     var body: some View {
         NavigationStack {
             List {
-                Section("アクセス権限") {
+                Section("Google OAuth設定") {
+                    TextField("iOSタイプのOAuthクライアントID", text: $clientID)
+                        .textFieldStyle(.roundedBorder)
+                        .disabled(model.isLoadingCalendars || model.calendarAuthorization == .connected)
+                    Button("クライアントIDを保存") { model.configureGoogleClientID(clientID) }
+                        .disabled(model.isLoadingCalendars || model.calendarAuthorization == .connected)
+                    Text("Google CloudでCalendar APIを有効にし、iOSタイプのOAuthクライアントを作成します。Bundle ID: com.atraz.PersonalGantt。Client SecretやTokenは入力しません。")
+                        .font(.caption).foregroundStyle(.secondary)
+                    Link("Google CloudのOAuth設定", destination: URL(string: "https://console.cloud.google.com/auth/clients")!)
+                }
+                Section("Googleアカウント") {
                     Text(model.calendarAuthorization.description)
-                    if model.calendarAuthorization == .notDetermined || model.calendarAuthorization == .writeOnly {
-                        Button("カレンダーへのアクセスを許可") {
+                    if model.calendarAuthorization != .connected {
+                        Button("Googleにログイン") {
                             _Concurrency.Task { await model.requestCalendarAccess() }
                         }
-                        .disabled(model.isLoadingCalendars)
+                        .disabled(model.isLoadingCalendars || model.googleClientID.isEmpty)
+                    } else {
+                        Button("この端末からログアウト", role: .destructive) {
+                            model.disconnectGoogle()
+                            selection = []
+                        }.disabled(model.isLoadingCalendars)
                     }
-                    Text("固定予定を読み取ります。Calendarのイベントは変更しません。")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                    Text("Calendar一覧とイベントの読み取りだけを要求します。TokenはKeychainに保存します。")
+                        .font(.caption).foregroundStyle(.secondary)
                 }
-                if model.calendarAuthorization == .fullAccess {
-                    Section("使用するカレンダー") {
-                        if model.calendars.isEmpty {
-                            Text("カレンダーがありません。標準Calendarのアカウント設定を確認してください。")
-                        }
+                if model.calendarAuthorization == .connected {
+                    Section("使用するGoogle Calendar") {
+                        if model.calendars.isEmpty { Text("読み取り可能なCalendarがありません。再読み込みしてください。") }
                         ForEach(model.calendars) { source in
                             Toggle(isOn: Binding(
                                 get: { selection.contains(source.id) },
                                 set: { selected in
                                     if selected { selection.insert(source.id) } else { selection.remove(source.id) }
                                 }
-                            )) {
-                                VStack(alignment: .leading) {
-                                    Text(source.title)
-                                    Text(source.accountTitle).font(.caption).foregroundStyle(.secondary)
-                                }
-                            }
+                            )) { Text(source.title) }
                             .disabled(model.isLoadingCalendars)
                         }
-                        Text("未選択の場合、活動可能時間だけを使います。選択はアプリ終了時に消えます。")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
+                        Text("未選択なら活動可能時間だけを使います。選択はアプリ終了時に消えます。")
+                            .font(.caption).foregroundStyle(.secondary)
                     }
-                    Button("一覧と固定予定を再読み込み") { model.refreshCalendars() }
-                        .disabled(model.isLoadingCalendars)
+                    Button("一覧と固定予定を再読み込み") {
+                        _Concurrency.Task { await model.refreshCalendars() }
+                    }.disabled(model.isLoadingCalendars)
                 }
-                if model.isLoadingCalendars { ProgressView("読み込み中…") }
+                if model.isLoadingCalendars { ProgressView("Google Calendarを読み込み中…") }
                 if let message = model.calendarMessage { Text(message).foregroundStyle(.orange) }
             }
-            .navigationTitle("カレンダーを選択")
+            .navigationTitle("Google Calendarを選択")
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("キャンセル") { dismiss() }.disabled(model.isLoadingCalendars)
+                    Button("閉じる") { dismiss() }.disabled(model.isLoadingCalendars)
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("反映") {
-                        if model.applyCalendarSelection(selection) { dismiss() }
-                    }
-                    .disabled(model.calendarAuthorization != .fullAccess || model.isLoadingCalendars)
+                        _Concurrency.Task {
+                            if await model.applyCalendarSelection(selection) { dismiss() }
+                        }
+                    }.disabled(model.calendarAuthorization != .connected || model.isLoadingCalendars)
                 }
             }
         }
         #if os(macOS)
-        .frame(minWidth: 440, idealWidth: 500, minHeight: 420)
+        .frame(minWidth: 480, idealWidth: 560, minHeight: 600)
         #endif
     }
 }
