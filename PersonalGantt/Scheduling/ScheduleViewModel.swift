@@ -32,6 +32,8 @@ final class ScheduleViewModel {
     @ObservationIgnored private var archivedTitles: [UUID: String] = [:]
     @ObservationIgnored private var reminderTaskIDs: Set<UUID> = []
 
+    var presentationCalendar: Calendar { calendar }
+
     init(tasks: [Task], availableSlots: [AvailableSlot]) {
         self.tasks = tasks
         self.availableSlots = availableSlots
