@@ -18,6 +18,11 @@ final class ScheduleViewModel {
     private(set) var protectedConflictCount = 0
     private(set) var googleClientID = ""
     private(set) var reminders: ReminderSyncViewModel?
+    private(set) var persistenceMessage: String?
+    private(set) var lastPlanSave: Date?
+    private(set) var isRestoredPlan = false
+    private(set) var isPlanStorageBlocked = false
+    @ObservationIgnored private var planStore: (any PlanSnapshotStoring)?
 
     @ObservationIgnored private var calendarProvider: (any CalendarProviding)?
     @ObservationIgnored private var selectionStore: (any CalendarSelectionStoring)?
@@ -47,6 +52,7 @@ final class ScheduleViewModel {
                   selectionScope: clientID)
         googleClientID = clientID
         attachReminders(provider: EventKitReminderService(), storage: FileReminderMetadataStore.live())
+        attachPlanStore(SwiftDataPlanStore.live())
     }
 
     func attachReminders(provider: any ReminderProviding, storage: any ReminderMetadataStoring) {
@@ -66,7 +72,8 @@ final class ScheduleViewModel {
         tasks: [Task], calendarProvider: any CalendarProviding,
         activitySettings: ActivitySettings = .default, calendar: Calendar = .current,
         clock: @escaping () -> Date = { Date() },
-        selectionStore: (any CalendarSelectionStoring)? = nil, selectionScope: String = ""
+        selectionStore: (any CalendarSelectionStoring)? = nil, selectionScope: String = "",
+        planStore: (any PlanSnapshotStoring)? = nil
     ) {
         self.init(tasks: tasks, availableSlots: [])
         self.calendarProvider = calendarProvider
@@ -85,6 +92,72 @@ final class ScheduleViewModel {
         } catch {
             calendarMessage = safeMessage(error)
         }
+        if let planStore { attachPlanStore(planStore) }
+    }
+
+    /// Restore before lifecycle refreshes. No permission request or remote write occurs here.
+    func attachPlanStore(_ store: any PlanSnapshotStoring) {
+        planStore = store
+        do {
+            guard let snapshot = try store.load() else { return }
+            try snapshot.validate()
+            tasks = snapshot.tasks
+            reminderTaskIDs = snapshot.reminderTaskIDs
+            archivedTitles = snapshot.archivedTitles
+            lastPlanSave = snapshot.savedAt
+            isRestoredPlan = true
+            // A saved provisional plan can also contain work that has since started.
+            hasConfirmedPlan = snapshot.hasConfirmedPlan || !snapshot.blocks.isEmpty
+            let sameSource = snapshot.calendarScope == selectionScope &&
+                (selectionStore == nil || snapshot.selectedCalendarIDs == selectedCalendarIDs)
+            if sameSource {
+                result = SchedulingResult(blocks: snapshot.blocks, unscheduledTaskIDs: snapshot.unscheduledTaskIDs)
+                availableSlots = snapshot.slots
+                calendars = snapshot.calendars
+                selectedCalendarIDs = snapshot.selectedCalendarIDs
+                fixedEvents = snapshot.fixedEvents
+                planningInterval = snapshot.planningStart.flatMap { start in
+                    snapshot.planningEnd.map { DateInterval(start: start, end: $0) }
+                }
+                lastCalendarRefresh = snapshot.lastCalendarRefresh
+            } else {
+                // Calendar context changed outside this checkpoint: only begun work is safe.
+                result = ScheduleReplanner().schedule(tasks: tasks, availableSlots: [],
+                    previousBlocks: snapshot.blocks, now: clock())
+                availableSlots = []
+                calendars = []
+                fixedEvents = []
+                lastCalendarRefresh = nil
+                calendarMessage = "連携設定が変わっています。開始済みの枠を保持し、Googleの再取得を待っています。"
+            }
+            updateProtectedConflicts(now: clock())
+        } catch {
+            // Never turn unreadable or newer data into an empty replacement store.
+            isPlanStorageBlocked = true
+            persistenceMessage = storageReason(error) + " 復元できていません。以後の変更はこの端末に保存されません。"
+        }
+    }
+
+    func retryPlanSave() { savePlan() }
+
+    private func savePlan() {
+        guard let planStore, !isPlanStorageBlocked else { return }
+        let snapshot = PlanSnapshot(savedAt: clock(), tasks: tasks, reminderTaskIDs: reminderTaskIDs,
+            blocks: result.blocks, unscheduledTaskIDs: result.unscheduledTaskIDs, archivedTitles: archivedTitles,
+            slots: availableSlots, calendars: calendars, selectedCalendarIDs: selectedCalendarIDs, fixedEvents: fixedEvents,
+            planningStart: planningInterval?.start, planningEnd: planningInterval?.end,
+            lastCalendarRefresh: lastCalendarRefresh, hasConfirmedPlan: hasConfirmedPlan, calendarScope: selectionScope)
+        do {
+            try planStore.save(snapshot)
+            lastPlanSave = snapshot.savedAt
+            persistenceMessage = nil
+        } catch {
+            persistenceMessage = storageReason(error) + " 最新の変更は未保存です。アプリを終了する前に「保存を再試行」してください。"
+        }
+    }
+
+    private func storageReason(_ error: Error) -> String {
+        (error as? PlanStorageError)?.localizedDescription ?? PlanStorageError.unavailable.localizedDescription
     }
 
     var unscheduledTasks: [Task] {
@@ -100,9 +173,11 @@ final class ScheduleViewModel {
             result = ScheduleReplanner().schedule(tasks: tasks, availableSlots: availableSlots, previousBlocks: hasConfirmedPlan ? result.blocks : [], now: now)
             updateProtectedConflicts(now: now)
         }
+        savePlan()
     }
 
     var availabilityDescription: String {
+        if isRestoredPlan { return "前回保存した計画を表示中。連携の最新取得を待っています。" }
         if lastCalendarRefresh == nil {
             return selectedCalendarIDs.isEmpty
                 ? "カレンダー未反映。活動可能時間のみで仮配置しています。"
@@ -142,7 +217,7 @@ final class ScheduleViewModel {
         }
         await reminders?.loadState()
         await loadCalendarState()
-        if lastCalendarRefresh == nil && calendarAuthorization != .connected {
+        if lastCalendarRefresh == nil && !isRestoredPlan && calendarAuthorization != .connected {
             rebuildProvisionalAvailability()
         }
     }
@@ -167,7 +242,7 @@ final class ScheduleViewModel {
         }
         if calendarProvider?.authorization == .connected {
             await refreshCalendars()
-        } else if lastCalendarRefresh == nil {
+        } else if lastCalendarRefresh == nil && !isRestoredPlan {
             rebuildProvisionalAvailability()
         } else {
             calendarAuthorization = calendarProvider?.authorization ?? .signedOut
@@ -265,10 +340,12 @@ final class ScheduleViewModel {
             result = nextResult
             hasConfirmedPlan = true
             lastCalendarRefresh = now
+            isRestoredPlan = false
             calendarMessage = effectiveIDs == selection ? nil : "利用できなくなったカレンダーを選択から除外しました。"
             calendarAuthorization = calendarProvider.authorization
             updateProtectedConflicts(now: now)
             selectionStore?.save(effectiveIDs, clientID: selectionScope)
+            savePlan()
             return
         }
         throw CalendarServiceError.planningPeriodChanged
@@ -302,12 +379,19 @@ final class ScheduleViewModel {
             selectionStore?.clear(clientID: selectionScope)
             selectionScope = clientID
             selectedCalendarIDs = []
+            calendars = []
+            fixedEvents = []
+            lastCalendarRefresh = nil
+            isRestoredPlan = false
+            // Old account availability cannot become a cache for the new account.
+            rebuildProvisionalAvailability()
         }
         googleClientID = clientID
         UserDefaults.standard.set(clientID, forKey: "googleOAuthClientID")
         calendarProvider = GoogleCalendarService.live(clientID: clientID)
         calendarAuthorization = calendarProvider?.authorization ?? .signedOut
         calendarMessage = nil
+        savePlan()
         return true
     }
 
@@ -328,7 +412,9 @@ final class ScheduleViewModel {
             availableSlots = try AvailabilityService().availableSlots(fixedEvents: [], settings: activitySettings, referenceDate: now, calendar: calendar)
             result = ScheduleReplanner().schedule(tasks: tasks, availableSlots: availableSlots, previousBlocks: protected, now: now)
             updateProtectedConflicts(now: now)
+            isRestoredPlan = false
             calendarMessage = "端末のGoogle認証情報を削除しました。活動可能時間のみで配置しています。"
+            savePlan()
         } catch { calendarMessage = safeMessage(error) }
     }
 
@@ -360,8 +446,10 @@ final class ScheduleViewModel {
         guard let index = tasks.firstIndex(where: { $0.id == id }) else {
             throw TaskInputError.taskNotFound
         }
-        if let reminders, reminderTaskIDs.contains(id), let identifier = tasks[index].reminderIdentifier,
-           let record = reminders.record(for: identifier) {
+        if reminderTaskIDs.contains(id) {
+            guard let reminders, let identifier = tasks[index].reminderIdentifier,
+                  let record = reminders.record(for: identifier)
+            else { throw ReminderServiceError.reminderUnavailable }
             guard input.title == tasks[index].title,
                   record.deadline == nil || input.deadline == tasks[index].deadline
             else { throw ReminderServiceError.sourceOwnedFields }
@@ -378,8 +466,10 @@ final class ScheduleViewModel {
 
     func deleteTask(id: UUID) {
         guard let task = tasks.first(where: { $0.id == id }) else { return }
-        if reminderTaskIDs.contains(id), let identifier = task.reminderIdentifier, let reminders {
-            _ = reminders.exclude(identifier: identifier)
+        if reminderTaskIDs.contains(id) {
+            if let identifier = task.reminderIdentifier, let reminders, reminders.record(for: identifier) != nil {
+                _ = reminders.exclude(identifier: identifier)
+            }
             return
         }
         archivedTitles[id] = task.title
