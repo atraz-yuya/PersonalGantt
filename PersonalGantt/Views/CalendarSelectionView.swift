@@ -53,17 +53,23 @@ struct CalendarSelectionView: View {
                             )) { Text(source.title) }
                             .disabled(model.isLoadingCalendars)
                         }
-                        Text("未選択なら活動可能時間だけを使います。選択はアプリ終了時に消えます。")
+                        Text("未選択なら活動可能時間だけを使います。取得成功後に選択を保存し、次回起動時に復元します。")
                             .font(.caption).foregroundStyle(.secondary)
                     }
                     Button("一覧と固定予定を再読み込み") {
                         _Concurrency.Task { await model.refreshCalendars() }
+                    }.disabled(model.isLoadingCalendars)
+                    Button("Google接続を確認") {
+                        _Concurrency.Task { await model.verifyCalendarConnection() }
                     }.disabled(model.isLoadingCalendars)
                 }
                 if model.isLoadingCalendars { ProgressView("Google Calendarを読み込み中…") }
                 if let message = model.calendarMessage { Text(message).foregroundStyle(.orange) }
             }
             .navigationTitle("Google Calendarを選択")
+            .onChange(of: model.calendars) { _, sources in
+                selection.formIntersection(Set(sources.map(\.id)))
+            }
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("閉じる") { dismiss() }.disabled(model.isLoadingCalendars)
