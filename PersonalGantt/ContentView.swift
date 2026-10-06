@@ -1,4 +1,5 @@
 import SwiftUI
+import EventKit
 #if os(macOS)
 import AppKit
 #endif
@@ -12,6 +13,7 @@ struct ContentView: View {
     @State private var editor: TaskEditorRoute?
     @State private var taskToDelete: Task?
     @State private var showsCalendarSelection = false
+    @State private var showsReminderSelection = false
 
     private var isForeground: Bool {
         #if os(macOS)
@@ -28,7 +30,7 @@ struct ContentView: View {
                     Label(model.availabilityDescription, systemImage: "calendar")
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
-                    Text("Taskと計画はアプリ終了時に消えます。Calendar選択とGoogle接続は保存します。")
+                    Text("連携TaskはRemindersから復元します。所要時間と選択はこの端末に保存します。手動Taskと計画履歴はアプリ終了時に消えます。")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                     if let range = model.planningInterval {
@@ -36,6 +38,13 @@ struct ContentView: View {
                             .font(.caption)
                     }
                     Button("使用するカレンダーを選択") { showsCalendarSelection = true }
+                    if let reminders = model.reminders {
+                        Button("使用するRemindersを選択") { showsReminderSelection = true }
+                        Text("Reminders: \(reminders.importedTasks.count)件のTask・\(reminders.waitingRecords.count)件が入力待ち")
+                            .font(.caption).foregroundStyle(.secondary)
+                        if reminders.isLoading { ProgressView("Remindersを読み込み中…") }
+                        if let message = reminders.message { Text(message).font(.caption).foregroundStyle(.orange) }
+                    }
                     if let refreshed = model.lastCalendarRefresh {
                         Text("最終読み込み: \(refreshed.formatted(date: .abbreviated, time: .shortened))")
                             .font(.caption).foregroundStyle(.secondary)
@@ -74,7 +83,7 @@ struct ContentView: View {
 
                 Section("タスク") {
                     if model.tasks.isEmpty {
-                        Text("タスクがありません。「タスクを追加」から登録してください。")
+                        Text("タスクがありません。Remindersを選択して所要時間を設定するか、「タスクを追加」から登録してください。")
                             .foregroundStyle(.secondary)
                     }
                     ForEach(model.tasks) { task in
@@ -85,7 +94,13 @@ struct ContentView: View {
                             isUnscheduled: model.result.unscheduledTaskIDs.contains(task.id),
                             onEdit: { editor = TaskEditorRoute(task: task) },
                             onDelete: { taskToDelete = task },
-                            onToggleCompletion: { model.toggleCompletion(id: task.id) }
+                            onToggleCompletion: {
+                                _Concurrency.Task { await model.toggleTaskCompletion(id: task.id) }
+                            },
+                            isReminderTask: model.isReminderTask(task.id),
+                            isBusy: model.isReminderTask(task.id) && (model.reminders?.isLoading ?? false),
+                            canToggleCompletion: !model.isReminderTask(task.id) ||
+                                (task.reminderIdentifier.flatMap { model.reminders?.record(for: $0)?.allowsCompletionChanges } ?? false)
                         )
                     }
                 }
@@ -136,6 +151,11 @@ struct ContentView: View {
                     _Concurrency.Task { await model.refreshCalendars() }
                 }
                 .disabled(model.isLoadingCalendars)
+                if let reminders = model.reminders {
+                    Button("Remindersを再読み込み", systemImage: "checklist") {
+                        _Concurrency.Task { await reminders.refresh() }
+                    }.disabled(reminders.isLoading)
+                }
             }
             .task(id: isForeground) {
                 guard isForeground else {
@@ -169,15 +189,29 @@ struct ContentView: View {
             }
             .onReceive(NotificationCenter.default.publisher(for: .NSSystemTimeZoneDidChange)) { _ in
                 guard isForeground else { return }
-                _Concurrency.Task { await model.refreshCalendars() }
+                _Concurrency.Task {
+                    await model.reminders?.loadState()
+                    await model.refreshCalendars()
+                }
+            }
+            .onReceive(NotificationCenter.default.publisher(for: .EKEventStoreChanged)) { _ in
+                guard isForeground else { return }
+                _Concurrency.Task { await model.reminders?.refresh() }
             }
             .sheet(isPresented: $showsCalendarSelection) {
                 CalendarSelectionView(model: model)
             }
+            .sheet(isPresented: $showsReminderSelection) {
+                if let reminders = model.reminders { ReminderSelectionView(model: reminders) }
+            }
             .sheet(item: $editor) { route in
                 TaskEditorView(
                     task: route.task,
-                    defaultDeadline: model.availableSlots.last?.end ?? Date().addingTimeInterval(86_400)
+                    defaultDeadline: model.availableSlots.last?.end ?? Date().addingTimeInterval(86_400),
+                    ownsTitle: route.task.map { !model.isReminderTask($0.id) } ?? true,
+                    ownsDeadline: route.task.map { task in
+                        !model.isReminderTask(task.id) || task.reminderIdentifier.flatMap { model.reminders?.record(for: $0)?.deadline } == nil
+                    } ?? true
                 ) { draft in
                     if let task = route.task {
                         try model.updateTask(id: task.id, draft: draft)
@@ -187,20 +221,22 @@ struct ContentView: View {
                 }
             }
             .alert(
-                "タスクを削除しますか？",
+                taskToDelete.map { model.isReminderTask($0.id) ? "配置対象から外しますか？" : "タスクを削除しますか？" } ?? "タスクを削除しますか？",
                 isPresented: Binding(
                     get: { taskToDelete != nil },
                     set: { if !$0 { taskToDelete = nil } }
                 ),
                 presenting: taskToDelete
             ) { task in
-                Button("削除", role: .destructive) {
+                Button(model.isReminderTask(task.id) ? "配置対象から外す" : "削除", role: .destructive) {
                     model.deleteTask(id: task.id)
                     taskToDelete = nil
                 }
                 Button("キャンセル", role: .cancel) { taskToDelete = nil }
             } message: { task in
-                Text("「\(task.title)」を削除し、スケジュールを再計算します。")
+                Text(model.isReminderTask(task.id)
+                     ? "「\(task.title)」をPersonalGanttの配置対象から外し、スケジュールを再計算します。Apple Remindersの内容は残ります。"
+                     : "「\(task.title)」を削除し、スケジュールを再計算します。")
             }
         }
         .frame(minWidth: 320, minHeight: 480)
