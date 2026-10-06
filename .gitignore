@@ -9,3 +9,6 @@ GoogleService-Info.plist
 .env.*
 PrivateVerification/
 *.xcresult/
+
+# Device-local Reminder associations and requirements
+ReminderMetadata.json

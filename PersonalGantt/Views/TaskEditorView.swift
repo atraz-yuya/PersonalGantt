@@ -6,11 +6,16 @@ struct TaskEditorView: View {
     @State private var saveError: String?
     private let isEditing: Bool
     private let onSave: (TaskDraft) throws -> Void
+    private let ownsTitle: Bool
+    private let ownsDeadline: Bool
 
-    init(task: Task?, defaultDeadline: Date, onSave: @escaping (TaskDraft) throws -> Void) {
+    init(task: Task?, defaultDeadline: Date, ownsTitle: Bool = true, ownsDeadline: Bool = true,
+         onSave: @escaping (TaskDraft) throws -> Void) {
         _draft = State(initialValue: task.map(TaskDraft.init(task:)) ?? TaskDraft(deadline: defaultDeadline))
         isEditing = task != nil
         self.onSave = onSave
+        self.ownsTitle = ownsTitle
+        self.ownsDeadline = ownsDeadline
     }
 
     var body: some View {
@@ -19,6 +24,7 @@ struct TaskEditorView: View {
                 Section("作業内容") {
                     TextField("タスク名", text: $draft.title)
                         .accessibilityIdentifier("task-title")
+                        .disabled(!ownsTitle)
                     TextField("所要時間（分）", text: $draft.estimatedMinutesText)
                         .accessibilityIdentifier("task-minutes")
                         #if os(iOS)
@@ -30,6 +36,11 @@ struct TaskEditorView: View {
                         displayedComponents: [.date, .hourAndMinute]
                     )
                     .accessibilityIdentifier("task-deadline")
+                    .disabled(!ownsDeadline)
+                    if !ownsTitle {
+                        Text("タイトルとReminders側で設定した締切は、Apple Remindersで変更してください。")
+                            .font(.caption).foregroundStyle(.secondary)
+                    }
                 }
 
                 Section {

@@ -17,6 +17,7 @@ final class ScheduleViewModel {
     private(set) var planningInterval: DateInterval?
     private(set) var protectedConflictCount = 0
     private(set) var googleClientID = ""
+    private(set) var reminders: ReminderSyncViewModel?
 
     @ObservationIgnored private var calendarProvider: (any CalendarProviding)?
     @ObservationIgnored private var selectionStore: (any CalendarSelectionStoring)?
@@ -29,6 +30,7 @@ final class ScheduleViewModel {
     @ObservationIgnored private var calendar = Calendar.current
     @ObservationIgnored private var clock: () -> Date = { Date() }
     @ObservationIgnored private var archivedTitles: [UUID: String] = [:]
+    @ObservationIgnored private var reminderTaskIDs: Set<UUID> = []
 
     init(tasks: [Task], availableSlots: [AvailableSlot]) {
         self.tasks = tasks
@@ -37,12 +39,25 @@ final class ScheduleViewModel {
     }
 
     convenience init() {
-        let sample = SampleSchedule.make()
         let clientID = UserDefaults.standard.string(forKey: "googleOAuthClientID") ?? ""
-        self.init(tasks: sample.tasks, calendarProvider: GoogleCalendarService.live(clientID: clientID),
+        self.init(tasks: [], calendarProvider: GoogleCalendarService.live(clientID: clientID),
                   calendar: .autoupdatingCurrent, selectionStore: UserDefaultsCalendarSelectionStore(),
                   selectionScope: clientID)
         googleClientID = clientID
+        attachReminders(provider: EventKitReminderService(), storage: FileReminderMetadataStore.live())
+    }
+
+    func attachReminders(provider: any ReminderProviding, storage: any ReminderMetadataStoring) {
+        reminders = ReminderSyncViewModel(provider: provider, storage: storage, clock: clock) { [weak self] imported in
+            guard let self else { return }
+            let newIDs = Set(imported.map(\.id))
+            for old in self.tasks where self.reminderTaskIDs.contains(old.id) && !newIDs.contains(old.id) {
+                self.archivedTitles[old.id] = old.title
+            }
+            self.tasks = self.tasks.filter { !self.reminderTaskIDs.contains($0.id) } + imported
+            self.reminderTaskIDs = newIDs
+            self.recalculate()
+        }
     }
 
     convenience init(
@@ -115,11 +130,15 @@ final class ScheduleViewModel {
         if isLoadingCalendars {
             automaticRefreshPending = true
             await withCheckedContinuation { automaticRefreshWaiters.append($0) }
-            guard isApplicationActive, !_Concurrency.Task.isCancelled, automaticRefreshPending else { return }
-            automaticRefreshPending = false
-            await loadCalendarState()
+            guard isApplicationActive, !_Concurrency.Task.isCancelled else { return }
+            if automaticRefreshPending {
+                automaticRefreshPending = false
+                await loadCalendarState()
+            }
+            await reminders?.loadState()
             return
         }
+        await reminders?.loadState()
         await loadCalendarState()
         if lastCalendarRefresh == nil && calendarAuthorization != .connected {
             rebuildProvisionalAvailability()
@@ -139,6 +158,7 @@ final class ScheduleViewModel {
         guard isApplicationActive else { return }
         let now = clock()
         guard planningInterval?.start != calendar.startOfDay(for: now) else { return }
+        await reminders?.loadState()
         if isLoadingCalendars {
             automaticRefreshPending = true
             return
@@ -338,6 +358,15 @@ final class ScheduleViewModel {
         guard let index = tasks.firstIndex(where: { $0.id == id }) else {
             throw TaskInputError.taskNotFound
         }
+        if let reminders, reminderTaskIDs.contains(id), let identifier = tasks[index].reminderIdentifier,
+           let record = reminders.record(for: identifier) {
+            guard input.title == tasks[index].title,
+                  record.deadline == nil || input.deadline == tasks[index].deadline
+            else { throw ReminderServiceError.sourceOwnedFields }
+            try reminders.configure(identifier: identifier, estimatedMinutesText: draft.estimatedMinutesText,
+                                    deadlineOverride: record.deadline == nil ? input.deadline : nil)
+            return
+        }
         // Preserve identity and completion when editing the work requirement.
         tasks[index].title = input.title
         tasks[index].estimatedMinutes = input.estimatedMinutes
@@ -347,16 +376,31 @@ final class ScheduleViewModel {
 
     func deleteTask(id: UUID) {
         guard let task = tasks.first(where: { $0.id == id }) else { return }
+        if reminderTaskIDs.contains(id), let identifier = task.reminderIdentifier, let reminders {
+            _ = reminders.exclude(identifier: identifier)
+            return
+        }
         archivedTitles[id] = task.title
         tasks.removeAll { $0.id == id }
         recalculate()
     }
 
     func toggleCompletion(id: UUID) {
+        guard !reminderTaskIDs.contains(id) else { return }
         guard let index = tasks.firstIndex(where: { $0.id == id }) else { return }
         tasks[index].isCompleted.toggle()
         recalculate()
     }
+
+    func toggleTaskCompletion(id: UUID) async {
+        if reminderTaskIDs.contains(id), let identifier = tasks.first(where: { $0.id == id })?.reminderIdentifier {
+            await reminders?.toggleCompletion(identifier: identifier)
+        } else {
+            toggleCompletion(id: id)
+        }
+    }
+
+    func isReminderTask(_ id: UUID) -> Bool { reminderTaskIDs.contains(id) }
 
     /// Replace generated availability when fixed events change, then rebuild the plan.
     func updateAvailableSlots(_ slots: [AvailableSlot]) {

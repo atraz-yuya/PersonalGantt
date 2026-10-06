@@ -8,6 +8,9 @@ struct TaskRowView: View {
     let onEdit: () -> Void
     let onDelete: () -> Void
     let onToggleCompletion: () -> Void
+    var isReminderTask = false
+    var isBusy = false
+    var canToggleCompletion = true
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -34,14 +37,21 @@ struct TaskRowView: View {
             Text("締切: \(task.deadline.formatted(date: .abbreviated, time: .shortened))")
                 .font(.caption)
                 .foregroundStyle(.secondary)
+            if isReminderTask {
+                Label("Apple Reminders連携", systemImage: "checklist")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
 
             HStack(spacing: 16) {
                 Button(task.isCompleted ? "未完了に戻す" : "完了にする", action: onToggleCompletion)
+                    .disabled(isBusy || !canToggleCompletion)
                     .accessibilityIdentifier("toggle-task-\(task.id)")
                 Button("編集", action: onEdit)
+                    .disabled(isBusy)
                     .accessibilityIdentifier("edit-task-\(task.id)")
                 Spacer()
-                Button("削除", role: .destructive, action: onDelete)
+                Button(isReminderTask ? "配置対象から外す" : "削除", role: .destructive, action: onDelete)
+                    .disabled(isBusy)
                     .accessibilityIdentifier("delete-task-\(task.id)")
             }
             .buttonStyle(.borderless)
