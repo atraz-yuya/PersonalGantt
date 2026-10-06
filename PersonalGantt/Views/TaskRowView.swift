@@ -11,13 +11,20 @@ struct TaskRowView: View {
     var isReminderTask = false
     var isBusy = false
     var canToggleCompletion = true
+    var onDetail: (() -> Void)?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack(alignment: .top) {
-                Text(task.title)
-                    .font(.headline)
-                    .strikethrough(task.isCompleted)
+                if let onDetail {
+                    Button(action: onDetail) {
+                        Text(task.title).font(.headline).strikethrough(task.isCompleted)
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityHint("タスク詳細を開きます")
+                } else {
+                    Text(task.title).font(.headline).strikethrough(task.isCompleted)
+                }
                 Spacer()
                 status
             }
@@ -42,17 +49,22 @@ struct TaskRowView: View {
                     .font(.caption).foregroundStyle(.secondary)
             }
 
-            HStack(spacing: 16) {
-                Button(task.isCompleted ? "未完了に戻す" : "完了にする", action: onToggleCompletion)
-                    .disabled(isBusy || !canToggleCompletion)
-                    .accessibilityIdentifier("toggle-task-\(task.id)")
-                Button("編集", action: onEdit)
-                    .disabled(isBusy)
-                    .accessibilityIdentifier("edit-task-\(task.id)")
-                Spacer()
-                Button(isReminderTask ? "配置対象から外す" : "削除", role: .destructive, action: onDelete)
-                    .disabled(isBusy)
-                    .accessibilityIdentifier("delete-task-\(task.id)")
+            ViewThatFits(in: .horizontal) {
+                HStack(spacing: 16) {
+                    completionButton
+                    Button("編集", action: onEdit).disabled(isBusy)
+                        .accessibilityIdentifier("edit-task-\(task.id)")
+                    Spacer()
+                    deleteButton
+                }
+                VStack(alignment: .leading, spacing: 8) {
+                    HStack(spacing: 16) {
+                        completionButton
+                        Button("編集", action: onEdit).disabled(isBusy)
+                            .accessibilityIdentifier("edit-task-\(task.id)")
+                    }
+                    deleteButton
+                }
             }
             .buttonStyle(.borderless)
             .font(.subheadline)
@@ -60,6 +72,18 @@ struct TaskRowView: View {
         .padding(.vertical, 4)
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("task-row-\(task.id)")
+    }
+
+    private var completionButton: some View {
+        Button(task.isCompleted ? "未完了に戻す" : "完了にする", action: onToggleCompletion)
+            .disabled(isBusy || !canToggleCompletion)
+            .accessibilityIdentifier("toggle-task-\(task.id)")
+    }
+
+    private var deleteButton: some View {
+        Button(isReminderTask ? "配置対象から外す" : "削除", role: .destructive, action: onDelete)
+            .disabled(isBusy)
+            .accessibilityIdentifier("delete-task-\(task.id)")
     }
 
     @ViewBuilder private var status: some View {
