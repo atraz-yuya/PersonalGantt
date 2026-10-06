@@ -1,6 +1,7 @@
 # Phase 4.5：Google Calendar移行 実装報告
 
 2026-10-06。ブランチ: codex/google-calendar-integration。
+後続Phase 5での認証・選択の再起動復元とToken更新・実予定変更の確認は[Phase 5実装報告](Phase5.md)を参照してください。
 コード実装と合成API応答による検証は完了しています。
 本人のCloud設定とOAuthログイン後、macOSで実Calendar一覧・選択予定取得・空き時間生成・手動Refreshを確認しました。
 実Tokenの期限切れ更新、認証後の再起動復元、iOS実機での認証は未検証です。

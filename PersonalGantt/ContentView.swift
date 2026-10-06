@@ -1,10 +1,25 @@
 import SwiftUI
+#if os(macOS)
+import AppKit
+#endif
 
 struct ContentView: View {
+    @Environment(\.scenePhase) private var scenePhase
+    #if os(macOS)
+    @State private var applicationIsActive = NSApplication.shared.isActive
+    #endif
     @State private var model = ScheduleViewModel()
     @State private var editor: TaskEditorRoute?
     @State private var taskToDelete: Task?
     @State private var showsCalendarSelection = false
+
+    private var isForeground: Bool {
+        #if os(macOS)
+        applicationIsActive && scenePhase == .active
+        #else
+        scenePhase == .active
+        #endif
+    }
 
     var body: some View {
         NavigationStack {
@@ -13,7 +28,7 @@ struct ContentView: View {
                     Label(model.availabilityDescription, systemImage: "calendar")
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
-                    Text("データはアプリ終了時に消えます。")
+                    Text("Taskと計画はアプリ終了時に消えます。Calendar選択とGoogle接続は保存します。")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                     if let range = model.planningInterval {
@@ -122,7 +137,40 @@ struct ContentView: View {
                 }
                 .disabled(model.isLoadingCalendars)
             }
-            .task { await model.loadCalendarState() }
+            .task(id: isForeground) {
+                guard isForeground else {
+                    model.applicationDidBecomeInactive()
+                    return
+                }
+                await model.applicationDidBecomeActive()
+                // Only the active scene owns this timer. SwiftUI cancels it on backgrounding.
+                while !_Concurrency.Task.isCancelled {
+                    let delay = max(1, model.nextPlanningDay.timeIntervalSinceNow)
+                    do { try await _Concurrency.Task.sleep(for: .seconds(delay)) }
+                    catch { return }
+                    await model.refreshForDayChangeIfNeeded()
+                }
+            }
+            .onChange(of: isForeground) { _, active in
+                if !active { model.applicationDidBecomeInactive() }
+            }
+            #if os(macOS)
+            .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
+                applicationIsActive = true
+            }
+            .onReceive(NotificationCenter.default.publisher(for: NSApplication.didResignActiveNotification)) { _ in
+                applicationIsActive = false
+                model.applicationDidBecomeInactive()
+            }
+            #endif
+            .onReceive(NotificationCenter.default.publisher(for: .NSCalendarDayChanged)) { _ in
+                guard isForeground else { return }
+                _Concurrency.Task { await model.refreshForDayChangeIfNeeded() }
+            }
+            .onReceive(NotificationCenter.default.publisher(for: .NSSystemTimeZoneDidChange)) { _ in
+                guard isForeground else { return }
+                _Concurrency.Task { await model.refreshCalendars() }
+            }
             .sheet(isPresented: $showsCalendarSelection) {
                 CalendarSelectionView(model: model)
             }

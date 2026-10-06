@@ -15,7 +15,7 @@ final class GoogleCalendarService: CalendarProviding {
         let transport = GoogleURLSessionTransport()
         let oauth = GoogleOAuthClient(configuration: GoogleOAuthConfiguration(clientID: clientID),
             storage: GoogleKeychainCredentialStore(), transport: transport, authenticator: GoogleWebAuthenticator())
-        return GoogleCalendarService(tokens: oauth, transport: transport)
+        return GoogleCalendarService(tokens: oauth, transport: transport, calendar: .autoupdatingCurrent)
     }
     var authorization: CalendarAuthorization { tokens.isSignedIn ? .connected : .signedOut }
     func requestAccess() async throws -> CalendarAuthorization {
@@ -23,6 +23,7 @@ final class GoogleCalendarService: CalendarProviding {
         return authorization
     }
     func disconnect() throws { try tokens.signOut() }
+    func validateConnection() async throws { _ = try await tokens.accessToken(forceRefresh: true) }
 
     func loadCalendars() async throws -> [CalendarSource] {
         var result: [CalendarSource] = []
