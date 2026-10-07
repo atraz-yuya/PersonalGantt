@@ -13,6 +13,7 @@ final class ReminderSyncViewModel {
     private(set) var message: String?
     private(set) var lastRefresh: Date?
     private(set) var isStorageAvailable = true
+    private(set) var transferTaskIDs: [UUID: UUID] = [:]
 
     @ObservationIgnored private let provider: any ReminderProviding
     @ObservationIgnored private let storage: any ReminderMetadataStoring
@@ -46,6 +47,26 @@ final class ReminderSyncViewModel {
     func record(for id: String) -> ReminderRecord? { records.first { $0.id == id } }
     func task(for id: String) -> Task? { importedTasks.first { $0.reminderIdentifier == id } }
     func isExcluded(_ id: String) -> Bool { state.metadata[id]?.isExcluded ?? false }
+    var pendingTransferCount: Int { state.pendingTransfer?.count ?? 0 }
+    func backupState() throws -> ReminderLocalState {
+        guard isStorageAvailable, !isLoading else { throw BackupError.busy }
+        try state.validate()
+        return state
+    }
+    /// Storage has already committed as part of the backup transaction. No native write.
+    func adoptRestoredState(_ restored: ReminderLocalState) {
+        state = restored
+        selectedListIDs = restored.selectedListIDs
+        records = []
+        importedTasks = []
+        lastRefresh = nil
+        transferTaskIDs = [:]
+        message = "ファイルの設定を読み込みました。Remindersの再取得を待っています。"
+    }
+    func blockAfterInterruptedRestore() {
+        isStorageAvailable = false
+        message = BackupError.recoveryRequired.localizedDescription
+    }
 
     func waitingDescription(for record: ReminderRecord) -> String {
         var missing: [String] = []
@@ -123,10 +144,14 @@ final class ReminderSyncViewModel {
         guard provider.authorization == .fullAccess else { throw ReminderServiceError.accessRequired }
         guard fetched.allSatisfy({ effective.contains($0.listID) }) else { throw ReminderServiceError.invalidSnapshot }
         var updated = try ReminderTaskMapper.reconcile(fetched, state: state)
+        let transferred = try ReminderTransferMapper.resolve(updated, records: fetched)
+        updated = transferred.state
         updated.selectedListIDs = effective
         // Save before publication: a storage failure cannot silently forget estimates.
         try storage.save(updated)
         state = updated
+        // Metadata and the plan use separate stores: recover mappings after an interrupted publication.
+        transferTaskIDs = updated.transferAliases ?? [:]
         selectedListIDs = effective
         lists = sources
         records = fetched.sorted { $0.title == $1.title ? $0.id < $1.id : $0.title < $1.title }
@@ -172,7 +197,7 @@ final class ReminderSyncViewModel {
     }
 
     func toggleCompletion(identifier: String) async {
-        guard !isLoading, let record = record(for: identifier) else { return }
+        guard !isLoading, isStorageAvailable, let record = record(for: identifier) else { return }
         guard record.allowsCompletionChanges else { report(ReminderServiceError.readOnly); return }
         isLoading = true
         pendingRefresh = false

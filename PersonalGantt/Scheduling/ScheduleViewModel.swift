@@ -22,7 +22,12 @@ final class ScheduleViewModel {
     private(set) var lastPlanSave: Date?
     private(set) var isRestoredPlan = false
     private(set) var isPlanStorageBlocked = false
+    private(set) var backupMessage: String?
+    private(set) var isBackupRecoveryRequired = false
     @ObservationIgnored private var planStore: (any PlanSnapshotStoring)?
+    @ObservationIgnored private var backupReminderStore: (any ReminderMetadataStoring)?
+    @ObservationIgnored private var backupJournal: (any BackupJournalStoring)?
+    @ObservationIgnored private var backupDeviceID = UUID()
 
     @ObservationIgnored private var calendarProvider: (any CalendarProviding)?
     @ObservationIgnored private var selectionStore: (any CalendarSelectionStoring)?
@@ -51,13 +56,30 @@ final class ScheduleViewModel {
                   calendar: .autoupdatingCurrent, selectionStore: UserDefaultsCalendarSelectionStore(),
                   selectionScope: clientID)
         googleClientID = clientID
-        attachReminders(provider: EventKitReminderService(), storage: FileReminderMetadataStore.live())
-        attachPlanStore(SwiftDataPlanStore.live())
+        let reminderStore = FileReminderMetadataStore.live()
+        let planStore = SwiftDataPlanStore.live()
+        let journal = FileBackupJournal.live()
+        do {
+            try BackupRestoration.recover(planStore: planStore, reminderStore: reminderStore, journal: journal)
+            attachReminders(provider: EventKitReminderService(), storage: reminderStore)
+            attachPlanStore(planStore)
+        } catch {
+            isBackupRecoveryRequired = true
+            backupMessage = BackupError.recoveryRequired.localizedDescription
+            attachReminders(provider: EventKitReminderService(), storage: LockedReminderStore())
+            attachPlanStore(LockedPlanStore())
+        }
+        let deviceID = UserDefaults.standard.string(forKey: "backupDeviceID").flatMap(UUID.init(uuidString:)) ?? UUID()
+        UserDefaults.standard.set(deviceID.uuidString, forKey: "backupDeviceID")
+        configureBackup(reminderStore: reminderStore, journal: journal, deviceID: deviceID)
     }
 
     func attachReminders(provider: any ReminderProviding, storage: any ReminderMetadataStoring) {
         reminders = ReminderSyncViewModel(provider: provider, storage: storage, clock: clock) { [weak self] imported in
             guard let self else { return }
+            if let mappings = self.reminders?.transferTaskIDs, !mappings.isEmpty {
+                self.remapTransferredBlocks(mappings)
+            }
             let newIDs = Set(imported.map(\.id))
             for old in self.tasks where self.reminderTaskIDs.contains(old.id) && !newIDs.contains(old.id) {
                 self.archivedTitles[old.id] = old.title
@@ -142,17 +164,125 @@ final class ScheduleViewModel {
 
     private func savePlan() {
         guard let planStore, !isPlanStorageBlocked else { return }
-        let snapshot = PlanSnapshot(savedAt: clock(), tasks: tasks, reminderTaskIDs: reminderTaskIDs,
-            blocks: result.blocks, unscheduledTaskIDs: result.unscheduledTaskIDs, archivedTitles: archivedTitles,
-            slots: availableSlots, calendars: calendars, selectedCalendarIDs: selectedCalendarIDs, fixedEvents: fixedEvents,
-            planningStart: planningInterval?.start, planningEnd: planningInterval?.end,
-            lastCalendarRefresh: lastCalendarRefresh, hasConfirmedPlan: hasConfirmedPlan, calendarScope: selectionScope)
+        let snapshot = currentPlanSnapshot()
         do {
             try planStore.save(snapshot)
             lastPlanSave = snapshot.savedAt
             persistenceMessage = nil
         } catch {
             persistenceMessage = storageReason(error) + " 最新の変更は未保存です。アプリを終了する前に「保存を再試行」してください。"
+        }
+    }
+
+    private func currentPlanSnapshot() -> PlanSnapshot {
+        PlanSnapshot(savedAt: clock(), tasks: tasks, reminderTaskIDs: reminderTaskIDs,
+            blocks: result.blocks, unscheduledTaskIDs: result.unscheduledTaskIDs, archivedTitles: archivedTitles,
+            slots: availableSlots, calendars: calendars, selectedCalendarIDs: selectedCalendarIDs, fixedEvents: fixedEvents,
+            planningStart: planningInterval?.start, planningEnd: planningInterval?.end,
+            lastCalendarRefresh: lastCalendarRefresh, hasConfirmedPlan: hasConfirmedPlan, calendarScope: selectionScope)
+    }
+
+    func configureBackup(reminderStore: any ReminderMetadataStoring, journal: any BackupJournalStoring, deviceID: UUID) {
+        backupReminderStore = reminderStore; backupJournal = journal; backupDeviceID = deviceID
+    }
+
+    var canUseBackup: Bool {
+        planStore != nil && !isPlanStorageBlocked && !isBackupRecoveryRequired &&
+            !isLoadingCalendars && !(reminders?.isLoading ?? false) && (reminders?.isStorageAvailable ?? true)
+    }
+
+    func makeBackup() throws -> PersonalGanttBackup {
+        guard canUseBackup else { throw BackupError.unavailable }
+        let value = PersonalGanttBackup(createdAt: clock(), sourceDeviceID: backupDeviceID,
+            plan: currentPlanSnapshot(), reminders: try reminders?.backupState() ?? ReminderLocalState())
+        try value.validate()
+        return value
+    }
+
+    /// Called only after the user previews and explicitly accepts the chosen file.
+    func restoreBackup(_ backup: PersonalGanttBackup) throws {
+        guard canUseBackup, let planStore, let backupReminderStore, let backupJournal else { throw BackupError.unavailable }
+        try backup.validate()
+        _ = try planStore.load() // Do not overwrite a store that became unreadable after launch.
+        try backupReminderStore.load().validate()
+        let before = try makeBackup()
+        let native = reminders?.records ?? []
+        let transfer = try ReminderTransferMapper.importState(backup.reminders, into: before.reminders,
+            sameDevice: backup.sourceDeviceID == backupDeviceID, records: native)
+        func importedID(_ source: UUID) -> UUID {
+            var current = source
+            var visited: Set<UUID> = []
+            while let next = backup.reminders.transferAliases?[current], visited.insert(current).inserted { current = next }
+            return transfer.taskIDs[current] ?? current
+        }
+        var next = backup
+        next.sourceDeviceID = backupDeviceID
+        next.reminders = transfer.state
+        next.plan.savedAt = clock()
+        next.plan.tasks = backup.plan.tasks.map { task in
+            Task(id: importedID(task.id), title: task.title, isCompleted: task.isCompleted,
+                 estimatedMinutes: task.estimatedMinutes, deadline: task.deadline,
+                 reminderIdentifier: task.reminderIdentifier.map { transfer.reminderIDs[$0] ?? $0 })
+        }
+        next.plan.reminderTaskIDs = Set(backup.plan.reminderTaskIDs.map(importedID))
+        next.plan.blocks = backup.plan.blocks.map { block in
+            ScheduledBlock(taskID: importedID(block.taskID), start: block.start, end: block.end)
+        }
+        next.plan.archivedTitles = [:]
+        for (id, title) in backup.plan.archivedTitles { next.plan.archivedTitles[importedID(id)] = title }
+        let protected = result.blocks.filter { $0.start <= clock() }
+        for block in protected { next.plan.archivedTitles[block.taskID] = title(for: block.taskID) }
+        var seen: Set<ScheduledBlock.ID> = []
+        next.plan.blocks = (protected + next.plan.blocks).filter { seen.insert($0.id).inserted }
+        let sameCalendar = backup.plan.calendarScope == selectionScope && backup.plan.selectedCalendarIDs == selectedCalendarIDs
+        next.plan.calendarScope = selectionScope
+        next.plan.selectedCalendarIDs = selectedCalendarIDs
+        if !sameCalendar {
+            next.plan.slots = []; next.plan.fixedEvents = []; next.plan.calendars = []
+            next.plan.lastCalendarRefresh = nil
+            next.plan.planningStart = planningInterval?.start; next.plan.planningEnd = planningInterval?.end
+        }
+        let recalculated = ScheduleReplanner().schedule(tasks: next.plan.tasks, availableSlots: next.plan.slots,
+            previousBlocks: next.plan.blocks, now: clock())
+        next.plan.blocks = recalculated.blocks
+        next.plan.unscheduledTaskIDs = recalculated.unscheduledTaskIDs
+        next.plan.hasConfirmedPlan = backup.plan.hasConfirmedPlan || !next.plan.blocks.isEmpty
+        try next.validate()
+        do {
+            try BackupRestoration.replace(with: next, previous: before, planStore: planStore,
+                reminderStore: backupReminderStore, journal: backupJournal)
+        } catch let error as BackupError {
+            if error == .recoveryRequired {
+                isBackupRecoveryRequired = true
+                isPlanStorageBlocked = true
+                reminders?.blockAfterInterruptedRestore()
+            }
+            backupMessage = error.localizedDescription
+            throw error
+        }
+        reminders?.adoptRestoredState(next.reminders)
+        attachPlanStore(planStore)
+        let begun = result.blocks.filter { $0.start <= clock() }
+        let overlaps = begun.enumerated().contains { index, block in
+            begun.dropFirst(index + 1).contains { $0.start < block.end && block.start < $0.end }
+        }
+        backupMessage = "ファイルのTask・設定・履歴を読み込みました。開始済みの端末内の時間枠は保持しています。" +
+            (overlaps ? " 保持した履歴に重複する時間枠があります。Ganttで確認してください。" : "")
+    }
+
+    private func remapTransferredBlocks(_ mappings: [UUID: UUID]) {
+        func resolved(_ source: UUID) -> UUID {
+            var current = source
+            var visited: Set<UUID> = []
+            while let next = mappings[current], visited.insert(current).inserted { current = next }
+            return current
+        }
+        var seen: Set<ScheduledBlock.ID> = []
+        result.blocks = result.blocks.map { block in
+            ScheduledBlock(taskID: resolved(block.taskID), start: block.start, end: block.end)
+        }.filter { seen.insert($0.id).inserted }
+        for (source, target) in mappings {
+            archivedTitles[resolved(target)] = title(for: source)
         }
     }
 
@@ -165,6 +295,7 @@ final class ScheduleViewModel {
     }
 
     func recalculate() {
+        guard !isBackupRecoveryRequired else { return }
         if calendarProvider == nil {
             // Explicit-slot clients and existing tests retain their pure scheduler API.
             result = Scheduler().schedule(tasks: tasks, availableSlots: availableSlots)
@@ -434,6 +565,7 @@ final class ScheduleViewModel {
 
     @discardableResult
     func addTask(_ draft: TaskDraft) throws -> Task {
+        guard !isBackupRecoveryRequired else { throw BackupError.recoveryRequired }
         let input = try draft.validated()
         let task = Task(title: input.title, estimatedMinutes: input.estimatedMinutes, deadline: input.deadline)
         tasks.append(task)
@@ -442,6 +574,7 @@ final class ScheduleViewModel {
     }
 
     func updateTask(id: UUID, draft: TaskDraft) throws {
+        guard !isBackupRecoveryRequired else { throw BackupError.recoveryRequired }
         let input = try draft.validated()
         guard let index = tasks.firstIndex(where: { $0.id == id }) else {
             throw TaskInputError.taskNotFound
@@ -465,6 +598,7 @@ final class ScheduleViewModel {
     }
 
     func deleteTask(id: UUID) {
+        guard !isBackupRecoveryRequired else { return }
         guard let task = tasks.first(where: { $0.id == id }) else { return }
         if reminderTaskIDs.contains(id) {
             if let identifier = task.reminderIdentifier, let reminders, reminders.record(for: identifier) != nil {
@@ -478,6 +612,7 @@ final class ScheduleViewModel {
     }
 
     func toggleCompletion(id: UUID) {
+        guard !isBackupRecoveryRequired else { return }
         guard !reminderTaskIDs.contains(id) else { return }
         guard let index = tasks.firstIndex(where: { $0.id == id }) else { return }
         tasks[index].isCompleted.toggle()
@@ -485,6 +620,7 @@ final class ScheduleViewModel {
     }
 
     func toggleTaskCompletion(id: UUID) async {
+        guard !isBackupRecoveryRequired else { return }
         if reminderTaskIDs.contains(id), let identifier = tasks.first(where: { $0.id == id })?.reminderIdentifier {
             await reminders?.toggleCompletion(identifier: identifier)
         } else {

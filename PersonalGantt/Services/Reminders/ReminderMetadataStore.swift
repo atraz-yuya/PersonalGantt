@@ -13,6 +13,10 @@ nonisolated struct ReminderTaskMetadata: Codable, Equatable, Sendable {
 nonisolated struct ReminderLocalState: Codable, Equatable, Sendable {
     var selectedListIDs: Set<String> = []
     var metadata: [String: ReminderTaskMetadata] = [:]
+    /// Settings received from another device; local EventKit IDs are never matched by title.
+    var pendingTransfer: [String: ReminderTaskMetadata]?
+    /// Retain identity aliases if the process exits between metadata and plan publication.
+    var transferAliases: [UUID: UUID]?
 
     func validate() throws {
         guard selectedListIDs.allSatisfy({ !$0.isEmpty }),
@@ -21,7 +25,24 @@ nonisolated struct ReminderLocalState: Codable, Equatable, Sendable {
                   !id.isEmpty && !value.listID.isEmpty &&
                   (value.estimatedMinutes.map { $0 > 0 } ?? true) &&
                   (value.deadlineOverride.map { $0.timeIntervalSinceReferenceDate.isFinite && $0 >= .distantPast && $0 <= .distantFuture } ?? true)
-              }) else { throw ReminderServiceError.localStorage }
+              }),
+              (pendingTransfer.map { values in
+                  Set(values.values.map(\.taskID)).count == values.count && values.allSatisfy { id, value in
+                      !id.isEmpty && !value.listID.isEmpty &&
+                      (value.estimatedMinutes.map { $0 > 0 } ?? true) &&
+                      (value.deadlineOverride.map { $0.timeIntervalSinceReferenceDate.isFinite && $0 >= .distantPast && $0 <= .distantFuture } ?? true)
+                  }
+              } ?? true) else { throw ReminderServiceError.localStorage }
+        var checked: Set<UUID> = []
+        for source in transferAliases?.keys ?? Dictionary<UUID, UUID>().keys where !checked.contains(source) {
+            var visited: Set<UUID> = [source]
+            var current = source
+            while let next = transferAliases?[current], !checked.contains(next) {
+                guard visited.insert(next).inserted else { throw ReminderServiceError.localStorage }
+                current = next
+            }
+            checked.formUnion(visited)
+        }
     }
 }
 

@@ -15,3 +15,5 @@ ReminderMetadata.json
 
 # Device-local SwiftData checkpoint and SQLite sidecars
 LocalPlan.store*
+BackupRollback.json
+PersonalGantt-Backup*.json
