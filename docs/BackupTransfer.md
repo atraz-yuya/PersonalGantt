@@ -94,9 +94,13 @@ Macでは元の状態をファイルへ退避し、合成Taskを60分/12:00–13
 証拠は `/tmp/PersonalGantt-backup-preview.png` と `/tmp/PersonalGantt-backup-restored.png`。
 実ファイルで認証Token/Client Secretのフィールドがないことを確認しました。実ファイル・画面証拠はGitに含めません。
 最終macOSコンパイルとiOS Simulatorビルドは成功しました。
-ファイルの実操作に使用したMacビルドはApple Development署名付きです。最終調整版の再署名結果は許可後に確認します。
+ファイルの実操作に使用したMacビルドはApple Development署名付きです。
+最終調整版も現在のソースで署名付きビルド成功（`/tmp/PersonalGantt-backup-mac-current-build.log`）。`codesign --verify --deep --strict` も成功しました。
+最新版の再起動後、保存済みの選択によるGoogle/Remindersの再取得、端末内保存、バックアップメニューを確認しました。
+画面証拠は `/tmp/PersonalGantt-backup-final-launch.png`。既存Taskや通常の予定・Reminderの変更は行っていません。
 iPhone/iPadはビルドと合成データによる受け渡しテストまでで、実機間でのファイル受け渡しは未確認です。
 初回のiPhone/iPadインストールはXcodeからの個人用署名と実機の接続が必要です。
+[接続・実機インストール・ファイル往復の手順](PersonalDeviceSetup.md)を用意しました。現在の最低対応OSはiOS/iPadOS 27.0で、接続する実機のOS確認が必要です。
 無料Appleアカウントの実機用Provisioning Profileは発行から7日で期限が切れるため、再ビルド・再インストールが必要になる場合があります。
 [Apple公式のPersonal Teamの制約](https://developer.apple.com/support/compare-memberships/)を参照してください。
 複数端末で同時に編集した内容の自動統合、常時同期、保留設定の手動ペアリングUI、ファイル暗号化は未実装です。

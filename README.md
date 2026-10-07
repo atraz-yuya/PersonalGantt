@@ -16,6 +16,7 @@ Phase 7でToday・日別Timeline・日単位Gantt・Task詳細を追加しまし
 5. Calendarを複数選び「反映」する。Google側の変更は上部の「再読み込み」から読み直す。
 
 詳しいボタン・Bundle ID・スコープ・確認手順は[OAuth設定手順](docs/GoogleOAuthSetup.md)を参照してください。
+無料のPersonal Teamで自分のiPhone/iPadへ入れる手順は[実機インストールとファイル往復](docs/PersonalDeviceSetup.md)を参照してください。
 Client Secret/Tokenはチャットやコードへ貼りません。Client IDは公開識別子としてUserDefaults、TokenはKeychainへ保存します。
 Calendarへの書き込みはありません。Apple Calendarの同期設定は使いません。
 
@@ -107,6 +108,7 @@ EventKit Calendarの取得・権限要求は削除済みです。EventKitはRemi
 - [Phase 7の画面構成・変更ファイル・検証・残課題](docs/Phase7.md)
 - [Phase 8前半の端末内保存・復元・検証・同期の課題](docs/Phase8.md)
 - [個人利用のバックアップとMac・iPhone・iPadの手動受け渡し](docs/BackupTransfer.md)
+- [iPhone・iPadへの個人用インストールとファイル往復の確認](docs/PersonalDeviceSetup.md)
 - [Google OAuth設定手順](docs/GoogleOAuthSetup.md)
 - [Phase 4の履歴](docs/Phase4.md)
 - [Phase 3の履歴](docs/Phase3.md)
