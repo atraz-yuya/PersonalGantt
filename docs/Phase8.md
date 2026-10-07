@@ -80,7 +80,15 @@ iOS実機の保存復元・表示は未確認です。
 実Google/Reminders取得は従来の選択のまま成功し、通常の予定・Reminderを変更していません。
 画面証拠 `/tmp/PersonalGantt-phase8-restored90.png` などと実データベースはGitに含めません。
 
-## CloudKitへ進む前の課題
+## 個人利用の方針変更（2026-10-07）
+
+有料Apple Developer Programには加入せず、個人利用のアプリとして開発を続けます。
+CloudKitによる自動同期は見送ります。作業途中のCloudKit接続準備コードは取り下げ、既存の署名・保存先・権限を維持します。
+Google CalendarとApple Remindersは従来の連携を継続します。
+PersonalGantt固有の設定・計画を保全/受け渡しするため、[ファイルのバックアップと復元](BackupTransfer.md)を追加します。
+端末間で設定や計画が自動的に揃う状態ではありません。
+
+## 将来、端末間同期を追加する場合の課題
 
 - 手動Task・所要時間・補完締切・除外のどれを同期するかを確定する。
 - EventKitローカルIDを端末間の共通キーにしない。外部識別子・リスト・繰り返し回を使った対応を実デバイスで検証する。

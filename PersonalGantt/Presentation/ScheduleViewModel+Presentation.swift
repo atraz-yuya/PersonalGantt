@@ -14,11 +14,13 @@ extension ScheduleViewModel {
 
     func task(for id: UUID) -> Task? { tasks.first { $0.id == id } }
     func taskIsBusy(_ id: UUID) -> Bool {
+        if isBackupRecoveryRequired { return true }
         guard isReminderTask(id) else { return false }
         return (reminders?.isLoading ?? false) ||
             task(for: id)?.reminderIdentifier.flatMap { reminders?.record(for: $0) } == nil
     }
     func canToggleTask(_ task: Task) -> Bool {
-        !isReminderTask(task.id) || (task.reminderIdentifier.flatMap { reminders?.record(for: $0)?.allowsCompletionChanges } ?? false)
+        !isBackupRecoveryRequired && (!isReminderTask(task.id) ||
+            (reminders?.isStorageAvailable == true && (task.reminderIdentifier.flatMap { reminders?.record(for: $0)?.allowsCompletionChanges } ?? false)))
     }
 }

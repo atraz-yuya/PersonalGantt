@@ -28,6 +28,11 @@ struct IntegrationStatusView: View {
                 if let message = reminders.message { Text(message).font(.caption).foregroundStyle(.orange) }
             }
             if let message = model.calendarMessage { Text(message).font(.caption).foregroundStyle(.orange) }
+            if let message = model.backupMessage { Text(message).font(.caption).foregroundStyle(.secondary) }
+            if let count = model.reminders?.pendingTransferCount, count > 0 {
+                Text("受け渡したReminder設定\(count)件が対応確認待ちです。使用リストを選んで再読み込みしてください。")
+                    .font(.caption).foregroundStyle(.orange)
+            }
             if let message = model.persistenceMessage {
                 Text(message).font(.caption).foregroundStyle(.orange)
                 if !model.isPlanStorageBlocked {
@@ -57,7 +62,7 @@ struct IntegrationStatusView: View {
                     if let date = model.lastPlanSave {
                         Text("端末内の最終保存: \(date.formatted(date: .abbreviated, time: .shortened))")
                     }
-                    Text("手動Task・計画・開始済みの時間枠をこの端末に保存します。履歴は自動削除しません。連携Taskは前回の表示を復元し、再取得後に更新します。端末間同期は未対応です。")
+                    Text("手動Task・計画・開始済みの時間枠をこの端末に保存します。履歴は自動削除しません。バックアップファイルをMac・iPhone・iPad間で手動で受け渡せます。自動同期は行いません。ファイルにはTask名や予定を含むので、ご自身で管理してください。")
                 }.font(.caption).foregroundStyle(.secondary)
             }.font(.caption)
         }.padding(.horizontal).padding(.vertical, 10)
