@@ -408,7 +408,16 @@ final class ScheduleViewModel {
         recalculate()
     }
 
-    func applicationDidBecomeInactive() { isApplicationActive = false }
+    func applicationDidBecomeInactive() {
+        isApplicationActive = false
+        BackgroundCalendarRefresh.scheduleNext()
+    }
+
+    func performBackgroundRefresh() async {
+        defer { BackgroundCalendarRefresh.scheduleNext() }
+        guard !_Concurrency.Task.isCancelled else { return }
+        await loadCalendarState()
+    }
 
     /// The foreground UI sleeps until this calendar boundary, including DST days.
     var nextPlanningDay: Date {
