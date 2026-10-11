@@ -26,6 +26,11 @@ struct PersonalGanttApp: App {
         WindowGroup {
             ContentView(model: model)
         }
+        #if os(iOS)
+        .backgroundTask(.appRefresh(BackgroundCalendarRefresh.identifier)) {
+            await ScheduleViewModel.shared.performBackgroundRefresh()
+        }
+        #endif
         #endif
     }
 }
