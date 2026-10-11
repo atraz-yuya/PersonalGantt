@@ -72,7 +72,7 @@ struct SyncTests {
     @Test(arguments: [1,2,3]) func oldPayloadsRemainReadableAndBecomeVersionFour(version: Int) throws {
         let store = SyncPlanStore(); let value = model(store)
         _ = try value.addTask(TaskDraft(title: "Legacy", deadline: ReminderFixtures.date(23)))
-        var old = try #require(store.value); old.version = version; old.syncState = nil; old.workSessions = nil
+        var old = try #require(store.value); old.version = version; old.syncState = nil; old.workSessions = nil; old.schedulingSettings = nil
         if version == 1 { old.workloadSettings = nil; old.routines = nil }
         store.value = old
         let restored = model(store); #expect(restored.tasks == value.tasks)

@@ -26,6 +26,7 @@ nonisolated struct PlanSnapshot: Codable, Equatable, Sendable {
     var calendarCoverage: CalendarCoverage? = nil
     var syncState: SyncState? = nil
     var workSessions: [WorkSession]? = nil
+    var schedulingSettings: SchedulingSettings? = nil
     var activeWorkSession: ActiveWorkSession? = nil
 
     var resolvedCalendarCoverage: CalendarCoverage? {
@@ -69,13 +70,14 @@ nonisolated struct PlanSnapshot: Codable, Equatable, Sendable {
                 else { throw PlanStorageError.invalidSnapshot }
             }
         }
+        if schedulingSettings != nil && version < 4 { throw PlanStorageError.invalidSnapshot }
         if let workSessions {
             guard version >= 4, Set(workSessions.map(\.id)).count == workSessions.count,
                   workSessions.allSatisfy({ (try? $0.validate()) != nil && knownIDs.contains($0.taskID) && $0.end <= savedAt })
             else { throw PlanStorageError.invalidSnapshot }
         }
         if let activeWorkSession {
-            guard version >= 4, taskIDs.contains(activeWorkSession.taskID), validDate(activeWorkSession.start), activeWorkSession.start <= savedAt else { throw PlanStorageError.invalidSnapshot }
+            guard version >= 4, knownIDs.contains(activeWorkSession.taskID), validDate(activeWorkSession.start), activeWorkSession.start <= savedAt else { throw PlanStorageError.invalidSnapshot }
         }
         guard validDate(savedAt), taskIDs.count == tasks.count,
               reminderTaskIDs.isSubset(of: taskIDs),
