@@ -5,6 +5,7 @@ Phase 4.5で予定の取得元をGoogle Calendar APIへ切り替えました。
 Phase 5でCalendar選択の保存と、起動・前面復帰・日付切替の更新処理を追加しました。
 Phase 6でApple Remindersの取り込み、入力待ち、所要時間設定、完了状態の双方向同期を追加しました。
 Phase 7でToday・日別Timeline・日単位Gantt・Task詳細を追加しました。
+Siri / App Intentsから、タスク名・所要時間・締切を指定する直接追加経路を追加しました。
 コード実装・合成データ検証に加え、本人のOAuthログインと実Google Calendarの取得・空き時間生成・手動RefreshをmacOSで確認済みです。
 
 ## 起動とGoogle設定
@@ -37,6 +38,15 @@ Taskのタイトル・元の締切はRemindersを正とし、所要時間をRemi
 不足項目は「入力待ち」です。「所要時間・締切を設定」で必要項目を埋めると配置されます。
 日付だけの締切はその日23:59、開始・終了時刻はSchedulerが決定します。
 「配置対象から外す」はPersonalGantt内の除外で、ネイティブReminderは削除しません。
+
+## Siri・ショートカットから追加
+
+「Siri、PersonalGanttにタスクを追加」と話しかけ、タスク名、必要な分数、締切を答えます。
+「PersonalGanttでタスクを追加」「PersonalGanttに新しいタスクを追加」でも起動できます。
+ショートカットアプリのPersonalGantt「タスクを追加」では、同じ3項目を指定できます。
+タスクは端末内SwiftDataへ保存し、UIと同じ処理で再計算します。追加処理はGoogleの通信やログインを要求しません。
+保存に失敗したら成功を返さず、配置不足は保存成功と区別して通知します。
+実機での音声対話・Shortcutsの確認手順と制約は[Siri / App Intents実装報告](docs/SiriAppIntents.md)を参照してください。
 
 ## 画面
 
@@ -76,6 +86,10 @@ iPhoneなどコンパクト幅は「今日 / 日別 / タスク」のタブで�
 
 ## 検証
 
+2026-10-12、Siri / App Intents追加後の全322ケース成功（既存303＋追加19）。
+macOSビルドとiOS Simulatorビルドも成功し、日本語のShortcutメタデータ生成を確認しました。
+Siri実機対話とShortcutsアプリからの実行は実機での確認が残っています。
+
 2026-10-07、全303ケース成功（Phase 8前半の283 + ファイル受け渡しの追加20、パラメータ展開後）。
 macOSアプリ・単体テスト、iOS Simulatorビルドが成功しています。
 Apple Development署名のMacアプリで、実OAuth、Keychain保存・読み出し、複数Calendar選択、実予定取得、手動Refreshを確認しました。
@@ -97,7 +111,7 @@ iOSコンパイル:
 
 ## 未実装と報告
 
-Googleへの予定書き込み、Reminderの新規作成・削除・タイトル/締切の書き込み、Siri専用機能、CloudKit、複数日Gantt・ズーム・ドラッグ操作、常時バックグラウンド監視、completedMinutesは未実装です。
+Googleへの予定書き込み、Reminderの新規作成・削除・タイトル/締切の書き込み、CloudKit、複数日Gantt・ズーム・ドラッグ操作、常時バックグラウンド監視、completedMinutesは未実装です。
 所要時間設定と手動Taskのデバイス間自動同期は未対応です。端末内の保存・復元とファイルによる手動受け渡しを利用できます。
 EventKit Calendarの取得・権限要求は削除済みです。EventKitはReminders専用サービスと旧Calendar変換の合成テストで使用します。
 認証情報・個人データはGitへ追加しません。
@@ -110,6 +124,7 @@ EventKit Calendarの取得・権限要求は削除済みです。EventKitはRemi
 - [個人利用のバックアップとMac・iPhone・iPadの手動受け渡し](docs/BackupTransfer.md)
 - [iPhone・iPadへの個人用インストールとファイル往復の確認](docs/PersonalDeviceSetup.md)
 - [Google OAuth設定手順](docs/GoogleOAuthSetup.md)
+- [Siri / App Intentsの構成・検証・実機確認手順](docs/SiriAppIntents.md)
 - [Phase 4の履歴](docs/Phase4.md)
 - [Phase 3の履歴](docs/Phase3.md)
 

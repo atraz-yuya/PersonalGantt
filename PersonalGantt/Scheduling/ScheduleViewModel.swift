@@ -4,6 +4,9 @@ import Observation
 @MainActor
 @Observable
 final class ScheduleViewModel {
+    /// App-target intents and every window must use the same checkpoint owner.
+    static let shared = ScheduleViewModel()
+
     private(set) var tasks: [Task]
     private(set) var availableSlots: [AvailableSlot]
     private(set) var result: SchedulingResult
@@ -564,10 +567,24 @@ final class ScheduleViewModel {
     }
 
     @discardableResult
-    func addTask(_ draft: TaskDraft) throws -> Task {
+    func addTask(_ draft: TaskDraft, requirePersistence: Bool = false) throws -> Task {
         guard !isBackupRecoveryRequired else { throw BackupError.recoveryRequired }
         let input = try draft.validated()
         let task = Task(title: input.title, estimatedMinutes: input.estimatedMinutes, deadline: input.deadline)
+        if requirePersistence {
+            // Commit the requirement before scheduling. Siri must never report an
+            // in-memory-only addition as saved, or lose it if the plan save fails.
+            guard let planStore, !isPlanStorageBlocked else { throw PlanStorageError.unavailable }
+            var snapshot = currentPlanSnapshot()
+            snapshot.tasks.append(task)
+            do {
+                try planStore.save(snapshot)
+                lastPlanSave = snapshot.savedAt
+                persistenceMessage = nil
+            } catch {
+                throw PlanStorageError.unavailable
+            }
+        }
         tasks.append(task)
         recalculate()
         return task

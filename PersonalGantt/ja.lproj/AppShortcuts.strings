@@ -1,0 +1,3 @@
+"Add a task to ${applicationName}" = "${applicationName}にタスクを追加";
+"Add a task with ${applicationName}" = "${applicationName}でタスクを追加";
+"Create a task in ${applicationName}" = "${applicationName}に新しいタスクを追加";
