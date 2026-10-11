@@ -137,7 +137,7 @@ struct WorkloadRoutineIntegrationTests {
         let source = makeModel(WorkloadPlanStore())
         _ = try source.addTask(TaskDraft(title: "旧Task", deadline: date(23)))
         var backup = try source.makeBackup()
-        backup.plan.version = 1; backup.plan.syncState = nil; backup.plan.workSessions = nil; backup.plan.workloadSettings = nil; backup.plan.routines = nil
+        backup.plan.version = 1; backup.plan.syncState = nil; backup.plan.workSessions = nil; backup.plan.schedulingSettings = nil; backup.plan.workloadSettings = nil; backup.plan.routines = nil
         let encoded = try backup.encoded()
         let object = try #require(JSONSerialization.jsonObject(with: encoded) as? [String: Any])
         let plan = try #require(object["plan"] as? [String: Any])

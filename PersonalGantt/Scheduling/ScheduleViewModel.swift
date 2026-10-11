@@ -8,6 +8,7 @@ final class ScheduleViewModel {
     static let shared = ScheduleViewModel()
 
     private(set) var tasks: [Task]
+    private(set) var schedulingSettings = SchedulingSettings.default
     private(set) var workloadSettings = WorkloadSettings.unlimited
     private(set) var routines: [Routine] = []
     private(set) var workSessions: [WorkSession] = []
@@ -143,6 +144,7 @@ final class ScheduleViewModel {
             workloadSettings = snapshot.workloadSettings ?? .unlimited
             routines = snapshot.routines ?? []
             syncState = snapshot.syncState ?? SyncState()
+            schedulingSettings = snapshot.schedulingSettings ?? .default
             workSessions = snapshot.workSessions ?? []
             activeWorkSession = snapshot.activeWorkSession
             reminderTaskIDs = snapshot.reminderTaskIDs
@@ -167,7 +169,7 @@ final class ScheduleViewModel {
             } else {
                 // Calendar context changed outside this checkpoint: only begun work is safe.
                 result = ScheduleReplanner().schedule(tasks: tasks, availableSlots: [],
-                    previousBlocks: snapshot.blocks, now: clock(), workloadSettings: workloadSettings, calendar: calendar, workSessions: workSessions)
+                    previousBlocks: snapshot.blocks, now: clock(), workloadSettings: workloadSettings, calendar: calendar, workSessions: workSessions, distributionMode: schedulingSettings.distributionMode)
                 availableSlots = []
                 calendars = []
                 fixedEvents = []
@@ -207,7 +209,7 @@ final class ScheduleViewModel {
             slots: availableSlots, calendars: calendars, selectedCalendarIDs: selectedCalendarIDs, fixedEvents: fixedEvents,
             planningStart: planningInterval?.start, planningEnd: planningInterval?.end,
             lastCalendarRefresh: lastCalendarRefresh, hasConfirmedPlan: hasConfirmedPlan, calendarScope: selectionScope,
-            workloadSettings: workloadSettings, routines: routines, calendarCoverage: calendarCoverage, syncState: syncState, workSessions: workSessions, activeWorkSession: activeWorkSession)
+            workloadSettings: workloadSettings, routines: routines, calendarCoverage: calendarCoverage, syncState: syncState, workSessions: workSessions, schedulingSettings: schedulingSettings, activeWorkSession: activeWorkSession)
     }
 
     var canEnableSync: Bool { syncTransport != nil }
@@ -223,6 +225,8 @@ final class ScheduleViewModel {
             let encodedTasks = try Dictionary(uniqueKeysWithValues: ordinary.map { ($0.id.uuidString, try SyncState.payloadData($0)) })
             let encodedRoutines = try Dictionary(uniqueKeysWithValues: routines.map { ($0.id.uuidString, try SyncState.payloadData($0)) })
             syncState.capture(kind: .task, values: encodedTasks, now: clock())
+            syncState.capture(kind: .schedulingSettings, values: ["settings": try SyncState.payloadData(schedulingSettings)],
+                now: syncState.records["schedulingSettings_settings"] == nil && schedulingSettings == .default ? .distantPast : clock())
             let encodedSessions = try Dictionary(uniqueKeysWithValues: workSessions.map { ($0.id.uuidString, try SyncState.payloadData($0)) })
             syncState.capture(kind: .workSession, values: encodedSessions, now: clock())
             syncState.capture(kind: .routine, values: encodedRoutines, now: clock())
@@ -252,6 +256,7 @@ final class ScheduleViewModel {
         try merged.merge(incoming)
         var ordinary: [Task] = [], nextRoutines: [Routine] = [], nextWorkload = workloadSettings
         var nextSessions: [WorkSession] = []
+        var nextScheduling = schedulingSettings
         let decoder = JSONDecoder()
         for record in merged.records.values.sorted(by: { $0.key < $1.key }) {
             guard let data = record.payload else { continue }
@@ -272,11 +277,14 @@ final class ScheduleViewModel {
                 let value = try decoder.decode(WorkSession.self, from: data)
                 guard value.id.uuidString == record.id, value.end <= clock() else { throw SyncError.invalidData }
                 try value.validate(); nextSessions.append(value)
-            case .schedulingSettings: break
+            case .schedulingSettings:
+                guard record.id == "settings" else { throw SyncError.invalidData }
+                nextScheduling = try decoder.decode(SchedulingSettings.self, from: data)
             }
         }
         for old in tasks where !ordinary.contains(where: { $0.id == old.id }) { archivedTitles[old.id] = old.title }
         tasks = tasks.filter { reminderTaskIDs.contains($0.id) } + ordinary
+        schedulingSettings = nextScheduling
         workSessions = nextSessions
         for session in nextSessions { archivedTitles[session.taskID] = session.taskTitle }
         if let activeWorkSession, !tasks.contains(where: { $0.id == activeWorkSession.taskID }) { self.activeWorkSession = nil }
@@ -351,6 +359,7 @@ final class ScheduleViewModel {
             next.plan.planningStart = planningInterval?.start; next.plan.planningEnd = planningInterval?.end
         }
         next.plan.calendarCoverage = sameCalendar ? backup.plan.resolvedCalendarCoverage : nil
+        next.plan.schedulingSettings = backup.plan.schedulingSettings ?? .default
         next.plan.version = 4
         next.plan.syncState = syncState // Keep this device identity even if restoration is interrupted.
         next.plan.workloadSettings = backup.plan.workloadSettings ?? .unlimited
@@ -369,7 +378,7 @@ final class ScheduleViewModel {
         }
         next.plan.tasks = next.plan.tasks.filter { $0.routineOccurrence == nil } + occurrenceTasks
         let recalculated = ScheduleReplanner().schedule(tasks: next.plan.tasks, availableSlots: next.plan.slots,
-            previousBlocks: next.plan.blocks, now: clock(), workloadSettings: next.plan.workloadSettings ?? .unlimited, calendar: calendar, workSessions: next.plan.workSessions ?? [])
+            previousBlocks: next.plan.blocks, now: clock(), workloadSettings: next.plan.workloadSettings ?? .unlimited, calendar: calendar, workSessions: next.plan.workSessions ?? [], distributionMode: next.plan.schedulingSettings?.distributionMode ?? .earliestFirst)
         next.plan.blocks = recalculated.blocks
         next.plan.unscheduledTaskIDs = recalculated.unscheduledTaskIDs
         next.plan.hasConfirmedPlan = backup.plan.hasConfirmedPlan || !next.plan.blocks.isEmpty
@@ -446,11 +455,11 @@ final class ScheduleViewModel {
         if calendarProvider == nil {
             // Explicit-slot clients and existing tests retain their pure scheduler API.
             result = Scheduler().schedule(tasks: tasks, availableSlots: availableSlots,
-                                          workloadSettings: workloadSettings, calendar: calendar, completedMinutesByTask: WorkSession.minutesByTask(workSessions))
+                                          workloadSettings: workloadSettings, calendar: calendar, completedMinutesByTask: WorkSession.minutesByTask(workSessions), distributionMode: schedulingSettings.distributionMode)
         } else {
             let now = clock()
             result = ScheduleReplanner().schedule(tasks: tasks, availableSlots: availableSlots, previousBlocks: hasConfirmedPlan ? result.blocks : [],
-                                                 now: now, workloadSettings: workloadSettings, calendar: calendar, workSessions: workSessions)
+                                                 now: now, workloadSettings: workloadSettings, calendar: calendar, workSessions: workSessions, distributionMode: schedulingSettings.distributionMode)
             updateProtectedConflicts(now: now)
         }
         savePlan()
@@ -635,7 +644,7 @@ final class ScheduleViewModel {
             let previous = hasConfirmedPlan ? result.blocks : []
             rebuildRoutineTasks(in: range)
             let nextResult = ScheduleReplanner().schedule(tasks: tasks, availableSlots: slots, previousBlocks: previous, now: now,
-                                                        workloadSettings: workloadSettings, calendar: calendar, workSessions: workSessions)
+                                                        workloadSettings: workloadSettings, calendar: calendar, workSessions: workSessions, distributionMode: schedulingSettings.distributionMode)
             calendars = sources
             selectedCalendarIDs = effectiveIDs
             fixedEvents = events
@@ -716,7 +725,7 @@ final class ScheduleViewModel {
             try rebuildPlanningAvailability(now: now)
             rebuildRoutineTasks(in: routinePlanningRange)
             result = ScheduleReplanner().schedule(tasks: tasks, availableSlots: availableSlots, previousBlocks: protected, now: now,
-                                                 workloadSettings: workloadSettings, calendar: calendar, workSessions: workSessions)
+                                                 workloadSettings: workloadSettings, calendar: calendar, workSessions: workSessions, distributionMode: schedulingSettings.distributionMode)
             updateProtectedConflicts(now: now)
             isRestoredPlan = false
             calendarMessage = "端末のGoogle認証情報を削除しました。活動可能時間のみで配置しています。"
@@ -895,6 +904,11 @@ final class ScheduleViewModel {
     func cancelWorkTimer() { activeWorkSession = nil; savePlan() }
     func deleteWorkSession(id: UUID) { workSessions.removeAll { $0.id == id }; recalculate() }
 
+
+    func setDistributionMode(_ mode: DistributionMode) {
+        guard !isBackupRecoveryRequired else { return }
+        schedulingSettings.distributionMode = mode; recalculate()
+    }
 
     func setWorkloadSettings(_ settings: WorkloadSettings) throws {
         guard !isBackupRecoveryRequired else { throw BackupError.recoveryRequired }

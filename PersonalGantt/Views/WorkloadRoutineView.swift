@@ -37,6 +37,13 @@ struct WorkloadRoutineView: View {
                     if let message = model.horizonCapMessage { Text(message).foregroundStyle(.orange) }
                     if let message = model.coverageMessage { Text(message).foregroundStyle(.orange) }
                 }
+                Section("長期作業の配置") {
+                    Picker("配置方法", selection: Binding(get: { model.schedulingSettings.distributionMode }, set: { model.setDistributionMode($0) })) {
+                        ForEach(DistributionMode.allCases, id: \.self) { Text($0.displayName).tag($0) }
+                    }
+                    Text("資格勉強などには分散をおすすめします。利用できる日と容量で配分し、空き時間が少ない日は少なめにします。短期・少量の作業とRoutineは早い空き時間へ配置します。")
+                        .font(.caption).foregroundStyle(.secondary)
+                }
                 Section("1日の自動配置上限") {
                     Toggle("日次上限を使う", isOn: $limitEnabled).accessibilityIdentifier("workload-limit-enabled")
                     if limitEnabled {

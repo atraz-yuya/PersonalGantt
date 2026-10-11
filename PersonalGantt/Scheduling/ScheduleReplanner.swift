@@ -3,7 +3,7 @@ import Foundation
 /// Preserves begun plans without equating them with completed work.
 nonisolated struct ScheduleReplanner: Sendable {
     func schedule(tasks: [Task], availableSlots: [AvailableSlot], previousBlocks: [ScheduledBlock], now: Date,
-                  workloadSettings: WorkloadSettings = .unlimited, calendar: Calendar = .current, workSessions: [WorkSession] = []) -> SchedulingResult {
+                  workloadSettings: WorkloadSettings = .unlimited, calendar: Calendar = .current, workSessions: [WorkSession] = [], distributionMode: DistributionMode = .earliestFirst) -> SchedulingResult {
         let protected = previousBlocks.filter { $0.start <= now }
         let occupied = protected.filter { $0.start < $0.end }.map { DateInterval(start: $0.start, end: $0.end) }
         let futureSlots = availableSlots.compactMap { slot -> AvailableSlot? in
@@ -26,7 +26,7 @@ nonisolated struct ScheduleReplanner: Sendable {
         var result = Scheduler().schedule(tasks: tasks, availableSlots: free, alreadyAllocatedSeconds: allocated,
             workloadSettings: workloadSettings, calendar: calendar,
             alreadyScheduledSecondsByDay: DailyWorkload.secondsByDay(blocks: protected, calendar: calendar),
-            completedMinutesByTask: completed)
+            completedMinutesByTask: completed, distributionMode: distributionMode)
         result.blocks = (protected + result.blocks).sorted {
             if $0.start != $1.start { return $0.start < $1.start }
             return $0.taskID.uuidString < $1.taskID.uuidString
