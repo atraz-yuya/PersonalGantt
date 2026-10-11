@@ -24,6 +24,7 @@ nonisolated struct PlanSnapshot: Codable, Equatable, Sendable {
     var routines: [Routine]? = nil
     /// Version 3 separates fetched Calendar range from derived planning range.
     var calendarCoverage: CalendarCoverage? = nil
+    var syncState: SyncState? = nil
 
     var resolvedCalendarCoverage: CalendarCoverage? {
         if version >= 3 { return calendarCoverage }
@@ -37,7 +38,8 @@ nonisolated struct PlanSnapshot: Codable, Equatable, Sendable {
         }
         let taskIDs = Set(tasks.map(\.id))
         let knownIDs = taskIDs.union(archivedTitles.keys)
-        guard (1...3).contains(version) else { throw PlanStorageError.unsupportedVersion }
+        guard (1...4).contains(version) else { throw PlanStorageError.unsupportedVersion }
+        if let syncState { guard version >= 4, (try? syncState.validate()) != nil else { throw PlanStorageError.invalidSnapshot } }
         if version < 3 && calendarCoverage != nil { throw PlanStorageError.invalidSnapshot }
         if let coverage = calendarCoverage {
             guard validDate(coverage.start), validDate(coverage.end), coverage.start < coverage.end,

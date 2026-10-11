@@ -10,6 +10,10 @@ final class ScheduleViewModel {
     private(set) var tasks: [Task]
     private(set) var workloadSettings = WorkloadSettings.unlimited
     private(set) var routines: [Routine] = []
+    private(set) var syncState = SyncState()
+    private(set) var syncMessage: String?
+    private(set) var isSyncing = false
+    @ObservationIgnored private var syncTransport: (any SyncTransport)?
     private(set) var availableSlots: [AvailableSlot]
     private(set) var result: SchedulingResult
     private(set) var calendars: [CalendarSource] = []
@@ -64,6 +68,7 @@ final class ScheduleViewModel {
         self.init(tasks: [], calendarProvider: GoogleCalendarService.live(clientID: clientID),
                   calendar: .autoupdatingCurrent, selectionStore: UserDefaultsCalendarSelectionStore(),
                   selectionScope: clientID)
+        syncTransport = CloudKitSyncTransport.configured()
         googleClientID = clientID
         let reminderStore = FileReminderMetadataStore.live()
         let planStore = SwiftDataPlanStore.live()
@@ -134,6 +139,7 @@ final class ScheduleViewModel {
             tasks = snapshot.tasks
             workloadSettings = snapshot.workloadSettings ?? .unlimited
             routines = snapshot.routines ?? []
+            syncState = snapshot.syncState ?? SyncState()
             reminderTaskIDs = snapshot.reminderTaskIDs
             archivedTitles = snapshot.archivedTitles
             lastPlanSave = snapshot.savedAt
@@ -178,6 +184,7 @@ final class ScheduleViewModel {
     func retryPlanSave() { savePlan() }
 
     private func savePlan() {
+        captureSyncChanges()
         guard let planStore, !isPlanStorageBlocked else { return }
         let snapshot = currentPlanSnapshot()
         do {
@@ -190,12 +197,76 @@ final class ScheduleViewModel {
     }
 
     private func currentPlanSnapshot() -> PlanSnapshot {
-        PlanSnapshot(version: 3, savedAt: clock(), tasks: tasks, reminderTaskIDs: reminderTaskIDs,
+        PlanSnapshot(version: 4, savedAt: clock(), tasks: tasks, reminderTaskIDs: reminderTaskIDs,
             blocks: result.blocks, unscheduledTaskIDs: result.unscheduledTaskIDs, archivedTitles: archivedTitles,
             slots: availableSlots, calendars: calendars, selectedCalendarIDs: selectedCalendarIDs, fixedEvents: fixedEvents,
             planningStart: planningInterval?.start, planningEnd: planningInterval?.end,
             lastCalendarRefresh: lastCalendarRefresh, hasConfirmedPlan: hasConfirmedPlan, calendarScope: selectionScope,
-            workloadSettings: workloadSettings, routines: routines, calendarCoverage: calendarCoverage)
+            workloadSettings: workloadSettings, routines: routines, calendarCoverage: calendarCoverage, syncState: syncState)
+    }
+
+    var canEnableSync: Bool { syncTransport != nil }
+    func attachSyncTransport(_ transport: any SyncTransport) { syncTransport = transport }
+    func setSyncEnabled(_ enabled: Bool) {
+        guard !enabled || canEnableSync else { syncMessage = SyncError.unavailable.localizedDescription; return }
+        syncState.isEnabled = enabled
+        savePlan()
+    }
+    private func captureSyncChanges() {
+        do {
+            let ordinary = tasks.filter { $0.routineOccurrence == nil && !reminderTaskIDs.contains($0.id) }
+            let encodedTasks = try Dictionary(uniqueKeysWithValues: ordinary.map { ($0.id.uuidString, try SyncState.payloadData($0)) })
+            let encodedRoutines = try Dictionary(uniqueKeysWithValues: routines.map { ($0.id.uuidString, try SyncState.payloadData($0)) })
+            syncState.capture(kind: .task, values: encodedTasks, now: clock())
+            syncState.capture(kind: .routine, values: encodedRoutines, now: clock())
+            syncState.capture(kind: .workload, values: ["settings": try SyncState.payloadData(workloadSettings)],
+                now: syncState.records["workload_settings"] == nil && workloadSettings == .unlimited ? .distantPast : clock())
+        } catch { syncMessage = SyncError.invalidData.localizedDescription }
+    }
+    func synchronizeIfActive() async { if isApplicationActive { await synchronize() } }
+    func synchronize() async {
+        guard syncState.isEnabled, let syncTransport, !isSyncing, !isBackupRecoveryRequired else { return }
+        isSyncing = true
+        defer { isSyncing = false }
+        captureSyncChanges()
+        do {
+            let remote = try await syncTransport.exchange(Array(syncState.records.values))
+            try _Concurrency.Task.checkCancellation()
+            try mergeSyncRecords(remote)
+            syncState.lastSync = clock()
+            syncMessage = syncState.conflictKeys.isEmpty ? "iCloud同期を反映しました。" : "競合を検出しました。更新日時の新しい内容を採用しています。"
+            savePlan()
+        } catch { syncMessage = (error as? SyncError)?.localizedDescription ?? SyncError.network.localizedDescription }
+    }
+    func mergeSyncRecords(_ incoming: [SyncRecord]) throws {
+        guard !isBackupRecoveryRequired else { throw BackupError.recoveryRequired }
+        captureSyncChanges()
+        var merged = syncState
+        try merged.merge(incoming)
+        var ordinary: [Task] = [], nextRoutines: [Routine] = [], nextWorkload = workloadSettings
+        let decoder = JSONDecoder()
+        for record in merged.records.values.sorted(by: { $0.key < $1.key }) {
+            guard let data = record.payload else { continue }
+            switch record.kind {
+            case .task:
+                let value = try decoder.decode(Task.self, from: data)
+                guard value.id.uuidString == record.id, value.routineOccurrence == nil, value.reminderIdentifier == nil,
+                      (try? TaskDraft(task: value).validated()) != nil else { throw SyncError.invalidData }
+                ordinary.append(value)
+            case .routine:
+                let value = try decoder.decode(Routine.self, from: data)
+                guard value.id.uuidString == record.id else { throw SyncError.invalidData }; try value.validate()
+                nextRoutines.append(value)
+            case .workload:
+                guard record.id == "settings" else { throw SyncError.invalidData }
+                nextWorkload = try decoder.decode(WorkloadSettings.self, from: data); try nextWorkload.validate()
+            case .workSession, .schedulingSettings: break
+            }
+        }
+        for old in tasks where !ordinary.contains(where: { $0.id == old.id }) { archivedTitles[old.id] = old.title }
+        tasks = tasks.filter { reminderTaskIDs.contains($0.id) } + ordinary
+        routines = nextRoutines; workloadSettings = nextWorkload; syncState = merged
+        recalculate()
     }
 
     func configureBackup(reminderStore: any ReminderMetadataStoring, journal: any BackupJournalStoring, deviceID: UUID) {
@@ -260,7 +331,8 @@ final class ScheduleViewModel {
             next.plan.planningStart = planningInterval?.start; next.plan.planningEnd = planningInterval?.end
         }
         next.plan.calendarCoverage = sameCalendar ? backup.plan.resolvedCalendarCoverage : nil
-        next.plan.version = 3
+        next.plan.version = 4
+        next.plan.syncState = syncState // Keep this device identity even if restoration is interrupted.
         next.plan.workloadSettings = backup.plan.workloadSettings ?? .unlimited
         next.plan.routines = backup.plan.routines ?? []
         let restoredHorizon = try PlanningHorizonResolver().resolve(now: clock(), tasks: next.plan.tasks,
@@ -295,7 +367,10 @@ final class ScheduleViewModel {
             throw error
         }
         reminders?.adoptRestoredState(next.reminders)
+        let localSync = syncState
         attachPlanStore(planStore)
+        syncState = localSync
+        savePlan()
         let begun = result.blocks.filter { $0.start <= clock() }
         let overlaps = begun.enumerated().contains { index, block in
             begun.dropFirst(index + 1).contains { $0.start < block.end && block.start < $0.end }
@@ -401,6 +476,7 @@ final class ScheduleViewModel {
             return
         }
         await reminders?.loadState()
+        await synchronize()
         await loadCalendarState()
         if lastCalendarRefresh == nil && !isRestoredPlan && calendarAuthorization != .connected {
             rebuildProvisionalAvailability()
