@@ -48,6 +48,10 @@ struct TaskRowView: View {
                 Label("Apple Reminders連携", systemImage: "checklist")
                     .font(.caption).foregroundStyle(.secondary)
             }
+            if let occurrence = task.routineOccurrence {
+                Label("ルーティン・\(occurrence.dayStart.formatted(date: .abbreviated, time: .omitted))", systemImage: "repeat")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
 
             ViewThatFits(in: .horizontal) {
                 HStack(spacing: 16) {
@@ -81,7 +85,7 @@ struct TaskRowView: View {
     }
 
     private var deleteButton: some View {
-        Button(isReminderTask ? "配置対象から外す" : "削除", role: .destructive, action: onDelete)
+        Button(task.routineOccurrence != nil ? "この日をスキップ" : isReminderTask ? "配置対象から外す" : "削除", role: .destructive, action: onDelete)
             .disabled(isBusy)
             .accessibilityIdentifier("delete-task-\(task.id)")
     }

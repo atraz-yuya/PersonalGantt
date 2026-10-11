@@ -22,7 +22,7 @@ struct BackupTests {
         switch kind {
         case 0: backup.version = 999
         case 1: backup.format = "other-app"
-        case 2: backup.plan.version = 2
+        case 2: backup.plan.version = 999
         case 3: backup.plan.tasks = [PersonalGantt.Task(title: " ", estimatedMinutes: 60, deadline: date(23))]
         default: backup.reminders.metadata[""] = ReminderFixtures.metadata()
         }

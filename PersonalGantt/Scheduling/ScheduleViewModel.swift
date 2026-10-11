@@ -8,6 +8,8 @@ final class ScheduleViewModel {
     static let shared = ScheduleViewModel()
 
     private(set) var tasks: [Task]
+    private(set) var workloadSettings = WorkloadSettings.unlimited
+    private(set) var routines: [Routine] = []
     private(set) var availableSlots: [AvailableSlot]
     private(set) var result: SchedulingResult
     private(set) var calendars: [CalendarSource] = []
@@ -127,6 +129,8 @@ final class ScheduleViewModel {
             guard let snapshot = try store.load() else { return }
             try snapshot.validate()
             tasks = snapshot.tasks
+            workloadSettings = snapshot.workloadSettings ?? .unlimited
+            routines = snapshot.routines ?? []
             reminderTaskIDs = snapshot.reminderTaskIDs
             archivedTitles = snapshot.archivedTitles
             lastPlanSave = snapshot.savedAt
@@ -148,7 +152,7 @@ final class ScheduleViewModel {
             } else {
                 // Calendar context changed outside this checkpoint: only begun work is safe.
                 result = ScheduleReplanner().schedule(tasks: tasks, availableSlots: [],
-                    previousBlocks: snapshot.blocks, now: clock())
+                    previousBlocks: snapshot.blocks, now: clock(), workloadSettings: workloadSettings, calendar: calendar)
                 availableSlots = []
                 calendars = []
                 fixedEvents = []
@@ -178,11 +182,12 @@ final class ScheduleViewModel {
     }
 
     private func currentPlanSnapshot() -> PlanSnapshot {
-        PlanSnapshot(savedAt: clock(), tasks: tasks, reminderTaskIDs: reminderTaskIDs,
+        PlanSnapshot(version: 2, savedAt: clock(), tasks: tasks, reminderTaskIDs: reminderTaskIDs,
             blocks: result.blocks, unscheduledTaskIDs: result.unscheduledTaskIDs, archivedTitles: archivedTitles,
             slots: availableSlots, calendars: calendars, selectedCalendarIDs: selectedCalendarIDs, fixedEvents: fixedEvents,
             planningStart: planningInterval?.start, planningEnd: planningInterval?.end,
-            lastCalendarRefresh: lastCalendarRefresh, hasConfirmedPlan: hasConfirmedPlan, calendarScope: selectionScope)
+            lastCalendarRefresh: lastCalendarRefresh, hasConfirmedPlan: hasConfirmedPlan, calendarScope: selectionScope,
+            workloadSettings: workloadSettings, routines: routines)
     }
 
     func configureBackup(reminderStore: any ReminderMetadataStoring, journal: any BackupJournalStoring, deviceID: UUID) {
@@ -225,7 +230,8 @@ final class ScheduleViewModel {
         next.plan.tasks = backup.plan.tasks.map { task in
             Task(id: importedID(task.id), title: task.title, isCompleted: task.isCompleted,
                  estimatedMinutes: task.estimatedMinutes, deadline: task.deadline,
-                 reminderIdentifier: task.reminderIdentifier.map { transfer.reminderIDs[$0] ?? $0 })
+                 reminderIdentifier: task.reminderIdentifier.map { transfer.reminderIDs[$0] ?? $0 },
+                 routineOccurrence: task.routineOccurrence)
         }
         next.plan.reminderTaskIDs = Set(backup.plan.reminderTaskIDs.map(importedID))
         next.plan.blocks = backup.plan.blocks.map { block in
@@ -245,8 +251,16 @@ final class ScheduleViewModel {
             next.plan.lastCalendarRefresh = nil
             next.plan.planningStart = planningInterval?.start; next.plan.planningEnd = planningInterval?.end
         }
+        next.plan.version = 2
+        next.plan.workloadSettings = backup.plan.workloadSettings ?? .unlimited
+        next.plan.routines = backup.plan.routines ?? []
+        let occurrenceTasks = RoutinePlanner().tasks(for: next.plan.routines ?? [], in: routinePlanningRange, calendar: calendar)
+        for old in next.plan.tasks where old.routineOccurrence != nil {
+            next.plan.archivedTitles[old.id] = old.title
+        }
+        next.plan.tasks = next.plan.tasks.filter { $0.routineOccurrence == nil } + occurrenceTasks
         let recalculated = ScheduleReplanner().schedule(tasks: next.plan.tasks, availableSlots: next.plan.slots,
-            previousBlocks: next.plan.blocks, now: clock())
+            previousBlocks: next.plan.blocks, now: clock(), workloadSettings: next.plan.workloadSettings ?? .unlimited, calendar: calendar)
         next.plan.blocks = recalculated.blocks
         next.plan.unscheduledTaskIDs = recalculated.unscheduledTaskIDs
         next.plan.hasConfirmedPlan = backup.plan.hasConfirmedPlan || !next.plan.blocks.isEmpty
@@ -299,12 +313,15 @@ final class ScheduleViewModel {
 
     func recalculate() {
         guard !isBackupRecoveryRequired else { return }
+        rebuildRoutineTasks(in: routinePlanningRange)
         if calendarProvider == nil {
             // Explicit-slot clients and existing tests retain their pure scheduler API.
-            result = Scheduler().schedule(tasks: tasks, availableSlots: availableSlots)
+            result = Scheduler().schedule(tasks: tasks, availableSlots: availableSlots,
+                                          workloadSettings: workloadSettings, calendar: calendar)
         } else {
             let now = clock()
-            result = ScheduleReplanner().schedule(tasks: tasks, availableSlots: availableSlots, previousBlocks: hasConfirmedPlan ? result.blocks : [], now: now)
+            result = ScheduleReplanner().schedule(tasks: tasks, availableSlots: availableSlots, previousBlocks: hasConfirmedPlan ? result.blocks : [],
+                                                 now: now, workloadSettings: workloadSettings, calendar: calendar)
             updateProtectedConflicts(now: now)
         }
         savePlan()
@@ -347,6 +364,7 @@ final class ScheduleViewModel {
                 await loadCalendarState()
             }
             await reminders?.loadState()
+            if !routines.isEmpty { recalculate() }
             return
         }
         await reminders?.loadState()
@@ -354,6 +372,7 @@ final class ScheduleViewModel {
         if lastCalendarRefresh == nil && !isRestoredPlan && calendarAuthorization != .connected {
             rebuildProvisionalAvailability()
         }
+        if !routines.isEmpty { recalculate() }
     }
 
     func applicationDidBecomeInactive() { isApplicationActive = false }
@@ -383,6 +402,8 @@ final class ScheduleViewModel {
             calendarMessage = calendarAuthorization.description + " 現在の予定を保持しています。"
         }
         // An unavailable provider must not replace a previously confirmed snapshot.
+        // Roll routine requirements forward even offline, using only retained availability.
+        if !routines.isEmpty { recalculate() }
     }
 
     func requestCalendarAccess() async {
@@ -465,7 +486,9 @@ final class ScheduleViewModel {
             guard range == currentRange else { continue }
             let slots = try AvailabilityService().availableSlots(fixedEvents: events, settings: activitySettings, referenceDate: now, calendar: calendar)
             let previous = hasConfirmedPlan ? result.blocks : []
-            let nextResult = ScheduleReplanner().schedule(tasks: tasks, availableSlots: slots, previousBlocks: previous, now: now)
+            rebuildRoutineTasks(in: range)
+            let nextResult = ScheduleReplanner().schedule(tasks: tasks, availableSlots: slots, previousBlocks: previous, now: now,
+                                                        workloadSettings: workloadSettings, calendar: calendar)
             calendars = sources
             selectedCalendarIDs = effectiveIDs
             fixedEvents = events
@@ -544,7 +567,9 @@ final class ScheduleViewModel {
             let now = clock()
             planningInterval = try AvailabilityService().planningInterval(referenceDate: now, settings: activitySettings, calendar: calendar)
             availableSlots = try AvailabilityService().availableSlots(fixedEvents: [], settings: activitySettings, referenceDate: now, calendar: calendar)
-            result = ScheduleReplanner().schedule(tasks: tasks, availableSlots: availableSlots, previousBlocks: protected, now: now)
+            rebuildRoutineTasks(in: routinePlanningRange)
+            result = ScheduleReplanner().schedule(tasks: tasks, availableSlots: availableSlots, previousBlocks: protected, now: now,
+                                                 workloadSettings: workloadSettings, calendar: calendar)
             updateProtectedConflicts(now: now)
             isRestoredPlan = false
             calendarMessage = "端末のGoogle認証情報を削除しました。活動可能時間のみで配置しています。"
@@ -596,6 +621,7 @@ final class ScheduleViewModel {
         guard let index = tasks.firstIndex(where: { $0.id == id }) else {
             throw TaskInputError.taskNotFound
         }
+        guard tasks[index].routineOccurrence == nil else { throw RoutineInputError.editOccurrence }
         if reminderTaskIDs.contains(id) {
             guard let reminders, let identifier = tasks[index].reminderIdentifier,
                   let record = reminders.record(for: identifier)
@@ -617,6 +643,13 @@ final class ScheduleViewModel {
     func deleteTask(id: UUID) {
         guard !isBackupRecoveryRequired else { return }
         guard let task = tasks.first(where: { $0.id == id }) else { return }
+        if let occurrence = task.routineOccurrence,
+           let index = routines.firstIndex(where: { $0.id == occurrence.routineID }) {
+            routines[index].completedOccurrenceIDs.remove(id)
+            routines[index].skippedOccurrenceIDs.insert(id)
+            recalculate()
+            return
+        }
         if reminderTaskIDs.contains(id) {
             if let identifier = task.reminderIdentifier, let reminders, reminders.record(for: identifier) != nil {
                 _ = reminders.exclude(identifier: identifier)
@@ -632,6 +665,14 @@ final class ScheduleViewModel {
         guard !isBackupRecoveryRequired else { return }
         guard !reminderTaskIDs.contains(id) else { return }
         guard let index = tasks.firstIndex(where: { $0.id == id }) else { return }
+        if let occurrence = tasks[index].routineOccurrence,
+           let routineIndex = routines.firstIndex(where: { $0.id == occurrence.routineID }) {
+            if !routines[routineIndex].completedOccurrenceIDs.insert(id).inserted {
+                routines[routineIndex].completedOccurrenceIDs.remove(id)
+            }
+            recalculate()
+            return
+        }
         tasks[index].isCompleted.toggle()
         recalculate()
     }
@@ -665,5 +706,63 @@ final class ScheduleViewModel {
     func unallocatedMinutes(for task: Task) -> Double {
         guard !task.isCompleted else { return 0 }
         return max(0, Double(task.estimatedMinutes) - scheduledMinutes(for: task.id))
+    }
+
+    func setWorkloadSettings(_ settings: WorkloadSettings) throws {
+        guard !isBackupRecoveryRequired else { throw BackupError.recoveryRequired }
+        try settings.validate()
+        workloadSettings = settings
+        recalculate()
+    }
+
+    @discardableResult
+    func saveRoutine(_ value: Routine) throws -> Routine {
+        guard !isBackupRecoveryRequired else { throw BackupError.recoveryRequired }
+        var value = value
+        value.title = value.title.trimmingCharacters(in: .whitespacesAndNewlines)
+        try value.validate()
+        if let index = routines.firstIndex(where: { $0.id == value.id }) {
+            // Editing a rule never resurrects already completed or skipped occurrences.
+            value.completedOccurrenceIDs = routines[index].completedOccurrenceIDs
+            value.skippedOccurrenceIDs = routines[index].skippedOccurrenceIDs
+            routines[index] = value
+        } else { routines.append(value) }
+        recalculate()
+        return value
+    }
+
+    func deleteRoutine(id: UUID) {
+        guard !isBackupRecoveryRequired else { return }
+        routines.removeAll { $0.id == id }
+        recalculate()
+    }
+
+    func resetRoutineSkippedDays(id: UUID) {
+        guard !isBackupRecoveryRequired, let index = routines.firstIndex(where: { $0.id == id }) else { return }
+        routines[index].skippedOccurrenceIDs = []
+        recalculate()
+    }
+
+    var dailyScheduledMinutes: [Date: Double] {
+        DailyWorkload.secondsByDay(blocks: result.blocks, calendar: calendar).mapValues { $0 / 60 }
+    }
+
+    var workloadLimitExceededDays: Int {
+        guard let limit = workloadSettings.maxScheduledMinutesPerDay else { return 0 }
+        return dailyScheduledMinutes.filter { $0.key >= calendar.startOfDay(for: clock()) && $0.value > Double(limit) }.count
+    }
+
+    private var routinePlanningRange: DateInterval {
+        (try? AvailabilityService().planningInterval(referenceDate: clock(), settings: activitySettings, calendar: calendar))
+            ?? DateInterval(start: calendar.startOfDay(for: clock()), duration: 0)
+    }
+
+    private func rebuildRoutineTasks(in range: DateInterval) {
+        let generated = RoutinePlanner().tasks(for: routines, in: range, calendar: calendar)
+        let newIDs = Set(generated.map(\.id))
+        for old in tasks where old.routineOccurrence != nil && !newIDs.contains(old.id) {
+            archivedTitles[old.id] = old.title
+        }
+        tasks = tasks.filter { $0.routineOccurrence == nil } + generated
     }
 }

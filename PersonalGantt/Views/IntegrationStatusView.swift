@@ -28,6 +28,14 @@ struct IntegrationStatusView: View {
                 if let message = reminders.message { Text(message).font(.caption).foregroundStyle(.orange) }
             }
             if let message = model.calendarMessage { Text(message).font(.caption).foregroundStyle(.orange) }
+            if let limit = model.workloadSettings.maxScheduledMinutesPerDay {
+                Label("自動配置の上限: 1日\(limit)分", systemImage: "hourglass")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
+            if model.workloadLimitExceededDays > 0 {
+                Text("開始済みの時間枠が日次上限を超えています。保持し、同じ日の追加配置を止めています。")
+                    .font(.caption).foregroundStyle(.orange)
+            }
             if let message = model.backupMessage { Text(message).font(.caption).foregroundStyle(.secondary) }
             if let count = model.reminders?.pendingTransferCount, count > 0 {
                 Text("受け渡したReminder設定\(count)件が対応確認待ちです。使用リストを選んで再読み込みしてください。")

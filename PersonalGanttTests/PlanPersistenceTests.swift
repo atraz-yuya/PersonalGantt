@@ -35,7 +35,7 @@ struct PlanPersistenceTests {
     @Test(arguments: Array(0..<10)) func snapshotRejectsInvalidOrNewerData(kind: Int) throws {
         var value = fixture()
         switch kind {
-        case 0: value.version = 2
+        case 0: value.version = 999
         case 1: value.tasks.append(value.tasks[0])
         case 2: value.tasks[0].title = " "
         case 3: value.blocks[0].end = value.blocks[0].start

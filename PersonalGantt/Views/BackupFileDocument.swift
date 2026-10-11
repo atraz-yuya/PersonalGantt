@@ -28,6 +28,8 @@ struct BackupPreviewView: View {
                 Section("読み込むファイル") {
                     LabeledContent("書き出し日時", value: backup.createdAt.formatted(date: .abbreviated, time: .shortened))
                     LabeledContent("Task", value: "\(backup.plan.tasks.count)件")
+                    LabeledContent("ルーティン", value: "\(backup.plan.routines?.count ?? 0)件")
+                    LabeledContent("日次上限", value: backup.plan.workloadSettings?.maxScheduledMinutesPerDay.map { "\($0)分" } ?? "上限なし")
                     LabeledContent("時間枠・履歴", value: "\(backup.plan.blocks.count)件")
                     LabeledContent("所要時間の設定", value: "\(backup.reminders.metadata.values.filter { $0.estimatedMinutes != nil }.count)件")
                 }

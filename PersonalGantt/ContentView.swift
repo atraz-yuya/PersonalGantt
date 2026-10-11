@@ -20,6 +20,7 @@ struct ContentView: View {
     @State private var taskToDelete: Task?
     @State private var showsCalendarSelection = false
     @State private var showsReminderSelection = false
+    @State private var showsWorkloadSettings = false
     @State private var showsBackupExport = false
     @State private var showsBackupImport = false
     @State private var backupDocument: BackupFileDocument?
@@ -86,6 +87,7 @@ struct ContentView: View {
                 _Concurrency.Task { await model.reminders?.refresh() }
             }
             .sheet(isPresented: $showsCalendarSelection) { CalendarSelectionView(model: model) }
+            .sheet(isPresented: $showsWorkloadSettings) { WorkloadRoutineView(model: model) }
             .sheet(isPresented: $showsReminderSelection) {
                 if let reminders = model.reminders { ReminderSelectionView(model: reminders) }
             }
@@ -142,20 +144,22 @@ struct ContentView: View {
                 }
             }
             .alert(
-                taskToDelete.map { model.isReminderTask($0.id) ? "配置対象から外しますか？" : "タスクを削除しますか？" } ?? "タスクを削除しますか？",
+                taskToDelete.map { $0.routineOccurrence != nil ? "この日のルーティンをスキップしますか？" : model.isReminderTask($0.id) ? "配置対象から外しますか？" : "タスクを削除しますか？" } ?? "タスクを削除しますか？",
                 isPresented: Binding(
                     get: { taskToDelete != nil },
                     set: { if !$0 { taskToDelete = nil } }
                 ),
                 presenting: taskToDelete
             ) { task in
-                Button(model.isReminderTask(task.id) ? "配置対象から外す" : "削除", role: .destructive) {
+                Button(task.routineOccurrence != nil ? "この日をスキップ" : model.isReminderTask(task.id) ? "配置対象から外す" : "削除", role: .destructive) {
                     model.deleteTask(id: task.id)
                     taskToDelete = nil
                 }
                 Button("キャンセル", role: .cancel) { taskToDelete = nil }
             } message: { task in
-                Text(model.isReminderTask(task.id)
+                Text(task.routineOccurrence != nil
+                     ? "この日の作業要件だけを配置対象から外します。ルーティンと開始済みの時間枠は保持します。"
+                     : model.isReminderTask(task.id)
                      ? "「\(task.title)」をPersonalGanttの配置対象から外し、スケジュールを再計算します。Apple Remindersの内容は残ります。"
                      : "「\(task.title)」を削除し、スケジュールを再計算します。")
             }
@@ -216,6 +220,8 @@ struct ContentView: View {
                 .accessibilityIdentifier("add-task")
             Button("再計算", systemImage: "arrow.clockwise") { model.recalculate() }
                 .disabled(model.isBackupRecoveryRequired)
+            Button("作業量・ルーティン", systemImage: "repeat") { showsWorkloadSettings = true }
+                .accessibilityIdentifier("workload-routine-settings")
             Menu("再読み込み", systemImage: "arrow.triangle.2.circlepath") {
                 Button("Google Calendarを再読み込み") { _Concurrency.Task { await model.refreshCalendars() } }
                     .disabled(model.isLoadingCalendars)
