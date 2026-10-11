@@ -12,6 +12,7 @@ struct TaskRowView: View {
     var isBusy = false
     var canToggleCompletion = true
     var onDetail: (() -> Void)?
+    var feasibilityMessage: String? = nil
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -44,6 +45,7 @@ struct TaskRowView: View {
             Text("締切: \(task.deadline.formatted(date: .abbreviated, time: .shortened))")
                 .font(.caption)
                 .foregroundStyle(.secondary)
+            if let feasibilityMessage { Text(feasibilityMessage).font(.caption).foregroundStyle(.orange) }
             if isReminderTask {
                 Label("Apple Reminders連携", systemImage: "checklist")
                     .font(.caption).foregroundStyle(.secondary)
@@ -94,7 +96,7 @@ struct TaskRowView: View {
         if task.isCompleted {
             Label("完了", systemImage: "checkmark.circle.fill").foregroundStyle(.secondary)
         } else if isUnscheduled {
-            Label(scheduledMinutes > 0 ? "一部未配置" : "配置不能", systemImage: "exclamationmark.circle")
+            Label(scheduledMinutes > 0 ? "一部未配置" : "未配置", systemImage: "exclamationmark.circle")
                 .foregroundStyle(.orange)
                 .font(.subheadline)
         } else {

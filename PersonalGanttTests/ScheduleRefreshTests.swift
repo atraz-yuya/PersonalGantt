@@ -4,7 +4,7 @@ import Testing
 
 @MainActor
 struct ScheduleRefreshTests {
-    @Test func launchRestoresSelectionAndReplacesProvisionalCurrentBlock() async {
+    @Test func launchRestoresSelectionAndWaitsForCoverageBeforePlacingCurrentBlock() async {
         let provider = RefreshCalendarProvider()
         let preferences = MemoryCalendarSelection()
         preferences.save(["work"], clientID: "client")
@@ -12,8 +12,8 @@ struct ScheduleRefreshTests {
         provider.events = [event(8, 10)]
         let model = model(provider, clock, preferences)
         #expect(model.selectedCalendarIDs == ["work"])
-        #expect(model.result.blocks.first?.start == date(8))
-        #expect(model.availabilityDescription.contains("仮配置"))
+        #expect(model.result.blocks.isEmpty)
+        #expect(model.availabilityDescription.contains("未取得"))
         await model.applicationDidBecomeActive()
         #expect(model.result.blocks.first?.start == date(10))
         #expect(model.protectedConflictCount == 0)
@@ -94,7 +94,7 @@ struct ScheduleRefreshTests {
         #expect(provider.calendarLoads == 0 && provider.accessRequests == 0)
         #expect(model.selectedCalendarIDs == ["work"])
         #expect(model.lastCalendarRefresh == nil)
-        #expect(model.availabilityDescription.contains("仮配置"))
+        #expect(model.availabilityDescription.contains("未取得"))
     }
 
     @Test func repeatedActiveSignalDoesNotRepeatedlyFetch() async {
@@ -176,7 +176,7 @@ struct ScheduleRefreshTests {
         #expect(provider.calendarLoads == 0 && provider.accessRequests == 0)
     }
 
-    @Test func revokedAuthorizationPreservesConfirmedSnapshotAtDayChange() async {
+    @Test func revokedAuthorizationPreservesCacheAndBegunWorkAtDayChange() async {
         let provider = RefreshCalendarProvider()
         let clock = RefreshClock(date(0))
         let model = model(provider, clock)
@@ -188,7 +188,8 @@ struct ScheduleRefreshTests {
         clock.now = date(0, day: 7)
         model.applicationDidBecomeInactive()
         await model.applicationDidBecomeActive()
-        #expect(model.result == before && model.planningInterval == oldRange)
+        #expect(model.result == before && model.planningInterval?.start == date(0, day: 7))
+        #expect(model.calendarCoverage?.interval == oldRange)
         #expect(model.calendarAuthorization == .signedOut)
         #expect(model.calendarMessage?.contains("保持") == true)
         #expect(provider.accessRequests == 0)
@@ -223,7 +224,8 @@ struct ScheduleRefreshTests {
         provider.onCalendars = { clock.now = clock.now.addingTimeInterval(86_400) }
         await model.refreshCalendars()
         #expect(provider.calendarLoads == loads + 2)
-        #expect(model.result == before && model.planningInterval == range)
+        #expect(model.result == before && model.planningInterval?.start == date(0, day: 8))
+        #expect(model.calendarCoverage?.interval == range)
         #expect(preferences.writes == writes)
         #expect(model.calendarMessage?.contains("日付") == true)
     }

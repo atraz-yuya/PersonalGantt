@@ -20,6 +20,9 @@ final class ScheduleViewModel {
     private(set) var isLoadingCalendars = false
     private(set) var lastCalendarRefresh: Date?
     private(set) var planningInterval: DateInterval?
+    private(set) var planningHorizon: PlanningHorizon?
+    private(set) var calendarCoverage: CalendarCoverage?
+    let horizonSettings = PlanningHorizonSettings.default
     private(set) var protectedConflictCount = 0
     private(set) var googleClientID = ""
     private(set) var reminders: ReminderSyncViewModel?
@@ -48,6 +51,7 @@ final class ScheduleViewModel {
     @ObservationIgnored private var reminderTaskIDs: Set<UUID> = []
 
     var presentationCalendar: Calendar { calendar }
+    var schedulingReferenceDate: Date { clock() }
 
     init(tasks: [Task], availableSlots: [AvailableSlot]) {
         self.tasks = tasks
@@ -113,8 +117,7 @@ final class ScheduleViewModel {
         self.calendarAuthorization = calendarProvider.authorization
         do {
             let now = clock()
-            planningInterval = try AvailabilityService().planningInterval(referenceDate: now, settings: activitySettings, calendar: calendar)
-            availableSlots = try AvailabilityService().availableSlots(fixedEvents: [], settings: activitySettings, referenceDate: now, calendar: calendar)
+            try rebuildPlanningAvailability(now: now)
             recalculate()
         } catch {
             calendarMessage = safeMessage(error)
@@ -149,6 +152,7 @@ final class ScheduleViewModel {
                     snapshot.planningEnd.map { DateInterval(start: start, end: $0) }
                 }
                 lastCalendarRefresh = snapshot.lastCalendarRefresh
+                calendarCoverage = snapshot.resolvedCalendarCoverage
             } else {
                 // Calendar context changed outside this checkpoint: only begun work is safe.
                 result = ScheduleReplanner().schedule(tasks: tasks, availableSlots: [],
@@ -157,8 +161,12 @@ final class ScheduleViewModel {
                 calendars = []
                 fixedEvents = []
                 lastCalendarRefresh = nil
+                calendarCoverage = nil
                 calendarMessage = "連携設定が変わっています。開始済みの枠を保持し、Googleの再取得を待っています。"
             }
+            let horizon = try resolveHorizon(now: clock())
+            planningHorizon = horizon
+            planningInterval = horizon.interval
             updateProtectedConflicts(now: clock())
         } catch {
             // Never turn unreadable or newer data into an empty replacement store.
@@ -182,12 +190,12 @@ final class ScheduleViewModel {
     }
 
     private func currentPlanSnapshot() -> PlanSnapshot {
-        PlanSnapshot(version: 2, savedAt: clock(), tasks: tasks, reminderTaskIDs: reminderTaskIDs,
+        PlanSnapshot(version: 3, savedAt: clock(), tasks: tasks, reminderTaskIDs: reminderTaskIDs,
             blocks: result.blocks, unscheduledTaskIDs: result.unscheduledTaskIDs, archivedTitles: archivedTitles,
             slots: availableSlots, calendars: calendars, selectedCalendarIDs: selectedCalendarIDs, fixedEvents: fixedEvents,
             planningStart: planningInterval?.start, planningEnd: planningInterval?.end,
             lastCalendarRefresh: lastCalendarRefresh, hasConfirmedPlan: hasConfirmedPlan, calendarScope: selectionScope,
-            workloadSettings: workloadSettings, routines: routines)
+            workloadSettings: workloadSettings, routines: routines, calendarCoverage: calendarCoverage)
     }
 
     func configureBackup(reminderStore: any ReminderMetadataStoring, journal: any BackupJournalStoring, deviceID: UUID) {
@@ -251,10 +259,19 @@ final class ScheduleViewModel {
             next.plan.lastCalendarRefresh = nil
             next.plan.planningStart = planningInterval?.start; next.plan.planningEnd = planningInterval?.end
         }
-        next.plan.version = 2
+        next.plan.calendarCoverage = sameCalendar ? backup.plan.resolvedCalendarCoverage : nil
+        next.plan.version = 3
         next.plan.workloadSettings = backup.plan.workloadSettings ?? .unlimited
         next.plan.routines = backup.plan.routines ?? []
-        let occurrenceTasks = RoutinePlanner().tasks(for: next.plan.routines ?? [], in: routinePlanningRange, calendar: calendar)
+        let restoredHorizon = try PlanningHorizonResolver().resolve(now: clock(), tasks: next.plan.tasks,
+            routines: next.plan.routines ?? [], settings: horizonSettings, calendar: calendar)
+        next.plan.planningStart = restoredHorizon.start; next.plan.planningEnd = restoredHorizon.end
+        // Clip imported availability to its actual fetched range and the new target.
+        let safeRange = next.plan.calendarCoverage?.intersection(with: restoredHorizon.interval)
+        if next.plan.calendarCoverage != nil || !next.plan.selectedCalendarIDs.isEmpty {
+            next.plan.slots = safeRange.map { clippedSlots(next.plan.slots, to: $0, now: clock()) } ?? []
+        } else { next.plan.slots = clippedSlots(next.plan.slots, to: restoredHorizon.interval, now: clock()) }
+        let occurrenceTasks = RoutinePlanner().tasks(for: next.plan.routines ?? [], in: restoredHorizon.interval, calendar: calendar)
         for old in next.plan.tasks where old.routineOccurrence != nil {
             next.plan.archivedTitles[old.id] = old.title
         }
@@ -313,7 +330,22 @@ final class ScheduleViewModel {
 
     func recalculate() {
         guard !isBackupRecoveryRequired else { return }
-        rebuildRoutineTasks(in: routinePlanningRange)
+        do {
+            let now = clock()
+            let horizon = try resolveHorizon(now: now)
+            let periodChanged = planningInterval != horizon.interval
+            planningHorizon = horizon
+            planningInterval = horizon.interval
+            if calendarProvider != nil {
+                if periodChanged { try rebuildPlanningAvailability(now: now) }
+                else {
+                    let safeRange = calendarCoverage?.intersection(with: horizon.interval)
+                        ?? (calendarCoverage == nil && selectedCalendarIDs.isEmpty ? horizon.interval : nil)
+                    availableSlots = safeRange.map { clippedSlots(availableSlots, to: $0, now: now) } ?? []
+                }
+            }
+            rebuildRoutineTasks(in: horizon.interval)
+        } catch { calendarMessage = safeMessage(error) }
         if calendarProvider == nil {
             // Explicit-slot clients and existing tests retain their pure scheduler API.
             result = Scheduler().schedule(tasks: tasks, availableSlots: availableSlots,
@@ -328,6 +360,7 @@ final class ScheduleViewModel {
     }
 
     var availabilityDescription: String {
+        if let coverageMessage { return coverageMessage }
         if isRestoredPlan { return "前回保存した計画を表示中。連携の最新取得を待っています。" }
         if lastCalendarRefresh == nil {
             return selectedCalendarIDs.isEmpty
@@ -364,7 +397,7 @@ final class ScheduleViewModel {
                 await loadCalendarState()
             }
             await reminders?.loadState()
-            if !routines.isEmpty { recalculate() }
+            recalculate()
             return
         }
         await reminders?.loadState()
@@ -372,7 +405,7 @@ final class ScheduleViewModel {
         if lastCalendarRefresh == nil && !isRestoredPlan && calendarAuthorization != .connected {
             rebuildProvisionalAvailability()
         }
-        if !routines.isEmpty { recalculate() }
+        recalculate()
     }
 
     func applicationDidBecomeInactive() { isApplicationActive = false }
@@ -403,7 +436,7 @@ final class ScheduleViewModel {
         }
         // An unavailable provider must not replace a previously confirmed snapshot.
         // Roll routine requirements forward even offline, using only retained availability.
-        if !routines.isEmpty { recalculate() }
+        recalculate()
     }
 
     func requestCalendarAccess() async {
@@ -458,6 +491,7 @@ final class ScheduleViewModel {
             if requestAccess { calendarAuthorization = try await provider.requestAccess() }
             guard calendarAuthorization == .connected else {
                 calendarMessage = calendarAuthorization.description + " 現在の予定を保持しています。"
+                refreshDerivedPeriodAfterFailure()
                 return false
             }
             if validateConnection { try await provider.validateConnection() }
@@ -466,25 +500,31 @@ final class ScheduleViewModel {
         } catch {
             calendarAuthorization = provider.authorization
             calendarMessage = "読み込みに失敗しました。現在の予定を保持します。\n\(safeMessage(error))"
+            refreshDerivedPeriodAfterFailure()
             return false
         }
     }
 
-    /// Publish only after all retrieval succeeds and its range still matches today's range.
+    private func refreshDerivedPeriodAfterFailure() {
+        if (try? resolveHorizon(now: clock()).interval) != planningInterval { recalculate() }
+    }
+
+    /// Publish only after all retrieval succeeds and its range still matches the requirements.
     private func readCalendarSnapshot(selection: Set<String>) async throws {
         guard let calendarProvider else { return }
         for _ in 0..<2 {
             let requestTime = clock()
-            let range = try AvailabilityService().planningInterval(referenceDate: requestTime, settings: activitySettings, calendar: calendar)
+            let range = try resolveHorizon(now: requestTime).interval
             let sources = try await calendarProvider.loadCalendars()
             let effectiveIDs = selection.intersection(Set(sources.map(\.id)))
             let events = effectiveIDs.isEmpty ? [] : try await calendarProvider.loadEvents(in: range, calendarIDs: effectiveIDs)
                 .filter { effectiveIDs.contains($0.calendarID) && !$0.isCancelled }
             try _Concurrency.Task.checkCancellation()
             let now = clock()
-            let currentRange = try AvailabilityService().planningInterval(referenceDate: now, settings: activitySettings, calendar: calendar)
+            let horizon = try resolveHorizon(now: now)
+            let currentRange = horizon.interval
             guard range == currentRange else { continue }
-            let slots = try AvailabilityService().availableSlots(fixedEvents: events, settings: activitySettings, referenceDate: now, calendar: calendar)
+            let slots = try AvailabilityService().availableSlots(fixedEvents: events, in: range, settings: activitySettings, referenceDate: now, calendar: calendar)
             let previous = hasConfirmedPlan ? result.blocks : []
             rebuildRoutineTasks(in: range)
             let nextResult = ScheduleReplanner().schedule(tasks: tasks, availableSlots: slots, previousBlocks: previous, now: now,
@@ -494,6 +534,8 @@ final class ScheduleViewModel {
             fixedEvents = events
             availableSlots = slots
             planningInterval = range
+            planningHorizon = horizon
+            calendarCoverage = CalendarCoverage(start: range.start, end: range.end)
             result = nextResult
             hasConfirmedPlan = true
             lastCalendarRefresh = now
@@ -511,11 +553,8 @@ final class ScheduleViewModel {
     private func rebuildProvisionalAvailability() {
         do {
             let now = clock()
-            let service = AvailabilityService()
-            let range = try service.planningInterval(referenceDate: now, settings: activitySettings, calendar: calendar)
-            let slots = try service.availableSlots(fixedEvents: [], settings: activitySettings, referenceDate: now, calendar: calendar)
-            planningInterval = range
-            availableSlots = slots
+            calendarCoverage = nil
+            try rebuildPlanningAvailability(now: now)
             recalculate()
         } catch { calendarMessage = safeMessage(error) }
     }
@@ -539,6 +578,7 @@ final class ScheduleViewModel {
             calendars = []
             fixedEvents = []
             lastCalendarRefresh = nil
+            calendarCoverage = nil
             isRestoredPlan = false
             // Old account availability cannot become a cache for the new account.
             rebuildProvisionalAvailability()
@@ -564,9 +604,9 @@ final class ScheduleViewModel {
             fixedEvents = []
             let protected = hasConfirmedPlan ? result.blocks : []
             lastCalendarRefresh = nil
+            calendarCoverage = nil
             let now = clock()
-            planningInterval = try AvailabilityService().planningInterval(referenceDate: now, settings: activitySettings, calendar: calendar)
-            availableSlots = try AvailabilityService().availableSlots(fixedEvents: [], settings: activitySettings, referenceDate: now, calendar: calendar)
+            try rebuildPlanningAvailability(now: now)
             rebuildRoutineTasks(in: routinePlanningRange)
             result = ScheduleReplanner().schedule(tasks: tasks, availableSlots: availableSlots, previousBlocks: protected, now: now,
                                                  workloadSettings: workloadSettings, calendar: calendar)
@@ -752,9 +792,61 @@ final class ScheduleViewModel {
         return dailyScheduledMinutes.filter { $0.key >= calendar.startOfDay(for: clock()) && $0.value > Double(limit) }.count
     }
 
+    private func resolveHorizon(now: Date) throws -> PlanningHorizon {
+        try PlanningHorizonResolver().resolve(now: now, tasks: tasks, routines: routines,
+                                             settings: horizonSettings, calendar: calendar)
+    }
+
     private var routinePlanningRange: DateInterval {
-        (try? AvailabilityService().planningInterval(referenceDate: clock(), settings: activitySettings, calendar: calendar))
-            ?? DateInterval(start: calendar.startOfDay(for: clock()), duration: 0)
+        (try? resolveHorizon(now: clock()).interval) ?? DateInterval(start: clock(), duration: 0)
+    }
+
+    private func clippedSlots(_ slots: [AvailableSlot], to range: DateInterval, now: Date) -> [AvailableSlot] {
+        slots.compactMap { slot in
+            let start = max(slot.start, range.start, now), end = min(slot.end, range.end)
+            return start < end ? AvailableSlot(id: slot.id, start: start, end: end) : nil
+        }
+    }
+
+    /// Regenerate only inside the confirmed cache. Shrinking does not destroy
+    /// coverage, so later edits can reuse an already fetched wider interval.
+    private func rebuildPlanningAvailability(now: Date) throws {
+        let horizon = try resolveHorizon(now: now)
+        planningHorizon = horizon
+        planningInterval = horizon.interval
+        let range: DateInterval
+        if let calendarCoverage {
+            guard let intersection = calendarCoverage.intersection(with: horizon.interval) else {
+                availableSlots = []; return
+            }
+            range = intersection
+        } else if selectedCalendarIDs.isEmpty {
+            range = horizon.interval // Explicitly provisional without selected Calendars.
+        } else {
+            availableSlots = []; return
+        }
+        availableSlots = try AvailabilityService().availableSlots(fixedEvents: fixedEvents, in: range,
+            settings: activitySettings, referenceDate: now, calendar: calendar)
+    }
+
+    var coverageMessage: String? {
+        guard calendarProvider != nil, let range = planningInterval else { return nil }
+        if let calendarCoverage, !calendarCoverage.contains(range) {
+            return "新しく延長された期間のCalendar情報をまだ取得できていません。取得済みの範囲だけに配置しています。"
+        }
+        if calendarCoverage == nil && !selectedCalendarIDs.isEmpty {
+            return "選択したCalendarの対象期間を未取得です。再読み込みを待っています。"
+        }
+        return nil
+    }
+
+    /// Invoked by the visible UI when the derived interval changes. Siri and
+    /// background creation persist/replan synchronously without requiring network.
+    func refreshPlanningCoverageIfNeeded() async {
+        guard isApplicationActive, calendarProvider?.authorization == .connected,
+              let range = planningInterval, calendarCoverage?.contains(range) != true else { return }
+        if isLoadingCalendars { automaticRefreshPending = true; return }
+        await refreshCalendars()
     }
 
     private func rebuildRoutineTasks(in range: DateInterval) {

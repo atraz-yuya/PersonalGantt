@@ -18,6 +18,13 @@ struct WorkloadRoutineView: View {
     var body: some View {
         NavigationStack {
             List {
+                Section("計画対象期間") {
+                    Text(model.planningPeriodDescription)
+                    Text("タスクの締切・ルーティンの終了日に応じて、最低14日・最長90暦日まで自動で延長します。")
+                        .font(.caption).foregroundStyle(.secondary)
+                    if let message = model.horizonCapMessage { Text(message).foregroundStyle(.orange) }
+                    if let message = model.coverageMessage { Text(message).foregroundStyle(.orange) }
+                }
                 Section("1日の自動配置上限") {
                     Toggle("日次上限を使う", isOn: $limitEnabled).accessibilityIdentifier("workload-limit-enabled")
                     if limitEnabled {
@@ -70,7 +77,7 @@ struct WorkloadRoutineView: View {
                         editor = RoutineEditorRoute(routine: Routine(title: "", estimatedMinutesPerDay: 60,
                                                                     startDate: start, endDate: end, recurrence: .daily))
                     }.disabled(model.isBackupRecoveryRequired).accessibilityIdentifier("add-routine")
-                    Text("各日ごとの作業要件を自動生成します。完了・スキップはその日だけに適用します。設定した終了日まで、現在の14日間を順に計画します。")
+                    Text("計画対象期間内の各日の作業要件を自動生成します。完了・スキップはその日だけに適用します。終了日を含め、最長90暦日まで計画します。")
                         .font(.caption).foregroundStyle(.secondary)
                 }
 

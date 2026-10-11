@@ -45,6 +45,9 @@ struct ContentView: View {
 
     var body: some View {
         workspace
+            .onChange(of: model.planningInterval) { _, _ in
+                _Concurrency.Task { await model.refreshPlanningCoverageIfNeeded() }
+            }
             .task(id: isForeground) {
                 guard isForeground else {
                     model.applicationDidBecomeInactive()

@@ -29,8 +29,19 @@ nonisolated struct AvailabilityService: Sendable {
         referenceDate: Date, calendar: Calendar = .current
     ) throws -> [AvailableSlot] {
         let range = try planningInterval(referenceDate: referenceDate, settings: settings, calendar: calendar)
+        return try availableSlots(fixedEvents: fixedEvents, in: range, settings: settings, referenceDate: referenceDate, calendar: calendar)
+    }
+
+    func availableSlots(
+        fixedEvents: [FixedEvent], in range: DateInterval, settings: ActivitySettings = .default,
+        referenceDate: Date, calendar: Calendar = .current
+    ) throws -> [AvailableSlot] {
+        guard settings.isValid else { throw AvailabilityError.invalidSettings }
+        guard range.start < range.end, range.start.timeIntervalSinceReferenceDate.isFinite,
+              range.end.timeIntervalSinceReferenceDate.isFinite,
+              referenceDate.timeIntervalSinceReferenceDate.isFinite else { throw AvailabilityError.invalidDateRange }
         var activity: [AvailableSlot] = []
-        var day = range.start
+        var day = calendar.startOfDay(for: range.start)
         while day < range.end {
             guard let nextDay = calendar.date(byAdding: .day, value: 1, to: day) else {
                 throw AvailabilityError.invalidDateRange
@@ -40,9 +51,10 @@ nonisolated struct AvailabilityService: Sendable {
             let window = (weekday == 1 || weekday == 7) ? settings.weekend : settings.weekday
             let start = try localTime(window.startMinute, on: day, nextDay: nextDay, calendar: calendar)
             let end = try localTime(window.endMinute, on: day, nextDay: nextDay, calendar: calendar)
-            let clippedStart = max(start, referenceDate)
-            if clippedStart < end {
-                activity.append(AvailableSlot(start: clippedStart, end: end))
+            let clippedStart = max(start, referenceDate, range.start)
+            let clippedEnd = min(end, range.end)
+            if clippedStart < clippedEnd {
+                activity.append(AvailableSlot(start: clippedStart, end: clippedEnd))
             }
             day = nextDay
         }
