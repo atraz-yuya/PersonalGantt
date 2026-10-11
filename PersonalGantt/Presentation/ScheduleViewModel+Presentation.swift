@@ -36,7 +36,7 @@ extension ScheduleViewModel {
         if coverageMessage != nil, task.deadline > schedulingReferenceDate,
            calendarCoverage.map({ task.deadline > $0.end }) ?? true { return .calendarCoveragePending }
         let eligible = availableSlots.filter { slot in
-            guard slot.start < task.deadline else { return false }
+            guard max(slot.start, task.notBefore ?? slot.start) < min(slot.end, task.deadline) else { return false }
             if let occurrence = task.routineOccurrence {
                 return slot.end > occurrence.dayStart && slot.start < occurrence.dayEnd
             }

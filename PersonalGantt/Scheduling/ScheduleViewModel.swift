@@ -31,6 +31,7 @@ final class ScheduleViewModel {
     private(set) var planningHorizon: PlanningHorizon?
     private(set) var calendarCoverage: CalendarCoverage?
     let horizonSettings = PlanningHorizonSettings.default
+    private(set) var lastRecalculation: Date?
     private(set) var protectedConflictCount = 0
     private(set) var googleClientID = ""
     private(set) var reminders: ReminderSyncViewModel?
@@ -102,9 +103,14 @@ final class ScheduleViewModel {
             for old in self.tasks where self.reminderTaskIDs.contains(old.id) && !newIDs.contains(old.id) {
                 self.archivedTitles[old.id] = old.title
             }
-            let priorities = Dictionary(uniqueKeysWithValues: self.tasks.map { ($0.id, $0.priority) })
+            var priorities = Dictionary(uniqueKeysWithValues: self.tasks.map { ($0.id, $0.priority) })
+            var deferred = Dictionary(uniqueKeysWithValues: self.tasks.compactMap { task in task.notBefore.map { (task.id, $0) } })
+            for (source, target) in self.reminders?.transferTaskIDs ?? [:] {
+                if let priority = priorities[source] { priorities[target] = priority }
+                if let bound = deferred[source] { deferred[target] = bound }
+            }
             let importedWithPriorities = imported.map { task in
-                var value = task; value.priority = priorities[task.id] ?? .normal; return value
+                var value = task; value.priority = priorities[task.id] ?? .normal; value.notBefore = deferred[task.id]; return value
             }
             self.tasks = self.tasks.filter { !self.reminderTaskIDs.contains($0.id) } + importedWithPriorities
             self.reminderTaskIDs = newIDs
@@ -337,7 +343,7 @@ final class ScheduleViewModel {
             Task(id: importedID(task.id), title: task.title, isCompleted: task.isCompleted,
                  estimatedMinutes: task.estimatedMinutes, deadline: task.deadline,
                  reminderIdentifier: task.reminderIdentifier.map { transfer.reminderIDs[$0] ?? $0 },
-                 routineOccurrence: task.routineOccurrence, priority: task.priority)
+                 routineOccurrence: task.routineOccurrence, priority: task.priority, notBefore: task.notBefore)
         }
         next.plan.activeWorkSession = nil
         var sessionsByID = Dictionary(uniqueKeysWithValues: workSessions.map { ($0.id, $0) })
@@ -466,6 +472,7 @@ final class ScheduleViewModel {
                                                  now: now, workloadSettings: workloadSettings, calendar: calendar, workSessions: workSessions, distributionMode: schedulingSettings.distributionMode)
             updateProtectedConflicts(now: now)
         }
+        lastRecalculation = clock()
         savePlan()
     }
 
@@ -866,6 +873,13 @@ final class ScheduleViewModel {
     }
 
     /// Unallocated estimate, not a record of completed work.
+    func skipToday(taskID: UUID) {
+        guard !isBackupRecoveryRequired, let index = tasks.firstIndex(where: { $0.id == taskID }) else { return }
+        if tasks[index].routineOccurrence != nil { deleteTask(id: taskID); return }
+        tasks[index].notBefore = calendar.date(byAdding: .day, value: 1, to: calendar.startOfDay(for: clock()))
+        recalculate()
+    }
+
     func completedMinutes(for taskID: UUID) -> Double { WorkSession.minutesByTask(workSessions)[taskID] ?? 0 }
     func remainingMinutes(for task: Task) -> Double {
         task.isCompleted ? 0 : max(0, Double(task.estimatedMinutes) - completedMinutes(for: task.id))
