@@ -19,6 +19,9 @@ nonisolated struct PlanSnapshot: Codable, Equatable, Sendable {
     var lastCalendarRefresh: Date?
     var hasConfirmedPlan: Bool
     var calendarScope: String
+    /// Version 1 checkpoints decode these as nil and retain unlimited one-off scheduling.
+    var workloadSettings: WorkloadSettings? = nil
+    var routines: [Routine]? = nil
 
     func validate() throws {
         func validDate(_ date: Date) -> Bool {
@@ -26,7 +29,27 @@ nonisolated struct PlanSnapshot: Codable, Equatable, Sendable {
         }
         let taskIDs = Set(tasks.map(\.id))
         let knownIDs = taskIDs.union(archivedTitles.keys)
-        guard version == 1 else { throw PlanStorageError.unsupportedVersion }
+        guard version == 1 || version == 2 else { throw PlanStorageError.unsupportedVersion }
+        if version == 1 {
+            guard workloadSettings == nil, routines == nil, tasks.allSatisfy({ $0.routineOccurrence == nil })
+            else { throw PlanStorageError.invalidSnapshot }
+        } else {
+            guard let workloadSettings, let routines,
+                  (try? workloadSettings.validate()) != nil,
+                  Set(routines.map(\.id)).count == routines.count,
+                  routines.allSatisfy({ (try? $0.validate()) != nil }) else { throw PlanStorageError.invalidSnapshot }
+            for task in tasks {
+                guard let occurrence = task.routineOccurrence else { continue }
+                guard let routine = routines.first(where: { $0.id == occurrence.routineID }),
+                      !occurrence.dayKey.isEmpty, occurrence.taskID == task.id,
+                      validDate(occurrence.dayStart), validDate(occurrence.dayEnd), occurrence.dayStart < occurrence.dayEnd,
+                      task.deadline == occurrence.dayEnd, task.reminderIdentifier == nil,
+                      !reminderTaskIDs.contains(task.id),
+                      task.isCompleted == routine.completedOccurrenceIDs.contains(task.id),
+                      !routine.skippedOccurrenceIDs.contains(task.id)
+                else { throw PlanStorageError.invalidSnapshot }
+            }
+        }
         guard validDate(savedAt), taskIDs.count == tasks.count,
               reminderTaskIDs.isSubset(of: taskIDs),
               tasks.allSatisfy({ (try? TaskDraft(task: $0).validated()) != nil &&

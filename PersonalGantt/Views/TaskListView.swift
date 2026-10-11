@@ -17,9 +17,13 @@ struct TaskListView: View {
                 }
             }
             Section("未完了タスク") {
-                let pending = model.tasks.filter { !$0.isCompleted }.sorted(by: taskOrder)
+                let pending = model.tasks.filter { !$0.isCompleted && $0.routineOccurrence == nil }.sorted(by: taskOrder)
                 if pending.isEmpty { Text("未完了のタスクはありません。") .foregroundStyle(.secondary) }
                 ForEach(pending) { row($0) }
+            }
+            let occurrences = model.tasks.filter { !$0.isCompleted && $0.routineOccurrence != nil }.sorted(by: taskOrder)
+            if !occurrences.isEmpty {
+                Section("ルーティン（各日）") { ForEach(occurrences) { row($0) } }
             }
             let completed = model.tasks.filter(\.isCompleted).sorted(by: taskOrder)
             if !completed.isEmpty {
@@ -35,7 +39,7 @@ struct TaskListView: View {
                             }
                         }.buttonStyle(.plain)
                     }
-                    Text("締切前の空き時間が不足しています。所要時間や締切を確認してください。")
+                    Text("締切・対象期間の空き時間または日次上限が不足しています。所要時間・締切・日次上限を確認してください。")
                         .font(.caption).foregroundStyle(.secondary)
                 }
             }

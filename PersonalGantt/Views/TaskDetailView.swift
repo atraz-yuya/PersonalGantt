@@ -16,10 +16,15 @@ struct TaskDetailView: View {
                         LabeledContent("必要時間", value: "\(task.estimatedMinutes)分")
                         LabeledContent("締切", value: task.deadline.formatted(date: .abbreviated, time: .shortened))
                         LabeledContent("配置時間", value: "\(model.scheduledMinutes(for: taskID).formatted())分")
+                        if let occurrence = task.routineOccurrence {
+                            Label("ルーティン・\(occurrence.dayStart.formatted(date: .abbreviated, time: .omitted))", systemImage: "repeat")
+                            Text("完了はこの日の作業だけに適用します。編集ではルーティン全体の設定を変更します。")
+                                .font(.caption).foregroundStyle(.secondary)
+                        }
                         if !task.isCompleted {
                             LabeledContent("未配置時間", value: "\(model.unallocatedMinutes(for: task).formatted())分")
                             if model.result.unscheduledTaskIDs.contains(taskID) {
-                                Label("締切までの空き時間が不足しています。", systemImage: "exclamationmark.circle")
+                                Label("締切・対象期間の空き時間または日次上限が不足しています。", systemImage: "exclamationmark.circle")
                                     .foregroundStyle(.orange)
                             }
                         }
@@ -75,13 +80,17 @@ struct TaskEditingSheet: View {
     @Bindable var model: ScheduleViewModel
     let task: Task?
     var body: some View {
-        TaskEditorView(task: task, defaultDeadline: model.availableSlots.last?.end ?? Date().addingTimeInterval(86_400),
-                       ownsTitle: task.map { !model.isReminderTask($0.id) } ?? true,
-                       ownsDeadline: task.map { value in
-                           !model.isReminderTask(value.id) || value.reminderIdentifier.flatMap { model.reminders?.record(for: $0)?.deadline } == nil
-                       } ?? true) { draft in
-            if let task { try model.updateTask(id: task.id, draft: draft) }
-            else { try model.addTask(draft) }
+        if let occurrence = task?.routineOccurrence, let routine = model.routines.first(where: { $0.id == occurrence.routineID }) {
+            RoutineEditorView(routine: routine, calendar: model.presentationCalendar) { try model.saveRoutine($0) }
+        } else {
+            TaskEditorView(task: task, defaultDeadline: model.availableSlots.last?.end ?? Date().addingTimeInterval(86_400),
+                           ownsTitle: task.map { !model.isReminderTask($0.id) } ?? true,
+                           ownsDeadline: task.map { value in
+                               !model.isReminderTask(value.id) || value.reminderIdentifier.flatMap { model.reminders?.record(for: $0)?.deadline } == nil
+                           } ?? true) { draft in
+                if let task { try model.updateTask(id: task.id, draft: draft) }
+                else { try model.addTask(draft) }
+            }
         }
     }
 }

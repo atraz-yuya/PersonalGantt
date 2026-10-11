@@ -9,6 +9,7 @@ nonisolated struct Task: Identifiable, Codable, Equatable, Sendable {
     var deadline: Date
     /// Local association; estimatedMinutes stays in PersonalGantt.
     var reminderIdentifier: String?
+    var routineOccurrence: RoutineOccurrence?
 
     init(
         id: UUID = UUID(),
@@ -16,7 +17,8 @@ nonisolated struct Task: Identifiable, Codable, Equatable, Sendable {
         isCompleted: Bool = false,
         estimatedMinutes: Int,
         deadline: Date,
-        reminderIdentifier: String? = nil
+        reminderIdentifier: String? = nil,
+        routineOccurrence: RoutineOccurrence? = nil
     ) {
         self.id = id
         self.title = title
@@ -24,5 +26,6 @@ nonisolated struct Task: Identifiable, Codable, Equatable, Sendable {
         self.estimatedMinutes = estimatedMinutes
         self.deadline = deadline
         self.reminderIdentifier = reminderIdentifier
+        self.routineOccurrence = routineOccurrence
     }
 }

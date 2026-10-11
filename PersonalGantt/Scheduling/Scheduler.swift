@@ -4,13 +4,25 @@ import Foundation
 nonisolated struct Scheduler: Sendable {
     func schedule(
         tasks: [Task], availableSlots: [AvailableSlot],
-        alreadyAllocatedSeconds: [UUID: TimeInterval] = [:]
+        alreadyAllocatedSeconds: [UUID: TimeInterval] = [:],
+        workloadSettings: WorkloadSettings = .unlimited,
+        calendar: Calendar = .current,
+        alreadyScheduledSecondsByDay: [Date: TimeInterval] = [:]
     ) -> SchedulingResult {
         let orderedTasks = tasks.filter { !$0.isCompleted }.sorted {
             if $0.deadline != $1.deadline { return $0.deadline < $1.deadline }
             return $0.id.uuidString < $1.id.uuidString
         }
         var slots = normalizedSlots(availableSlots)
+        let needsDays = workloadSettings.maxScheduledMinutesPerDay != nil || tasks.contains { $0.routineOccurrence != nil }
+        if needsDays {
+            slots = slots.flatMap { slot in
+                DailyWorkload.dayParts(start: slot.start, end: slot.end, calendar: calendar)
+                    .map { AvailableSlot(start: $0.start, end: $0.end) }
+            }
+        }
+        var dailySeconds = alreadyScheduledSecondsByDay
+        let dailyLimit = workloadSettings.maxScheduledMinutesPerDay.map { max(0, Double($0) * 60) }
         var result = SchedulingResult(blocks: [], unscheduledTaskIDs: [])
 
         for task in orderedTasks {
@@ -26,14 +38,21 @@ nonisolated struct Scheduler: Sendable {
             for index in slots.indices {
                 guard remainingSeconds > 0 else { break }
                 let start = slots[index].start
+                if let occurrence = task.routineOccurrence,
+                   (start < occurrence.dayStart || start >= occurrence.dayEnd) { continue }
                 let latestEnd = min(slots[index].end, task.deadline)
                 guard start < latestEnd else { continue }
 
-                let duration = min(remainingSeconds, latestEnd.timeIntervalSince(start))
+                let day = calendar.startOfDay(for: start)
+                let used = dailySeconds[day] ?? 0
+                let capacity = dailyLimit.map { max(0, $0 - used) } ?? .infinity
+                let duration = min(remainingSeconds, latestEnd.timeIntervalSince(start), capacity)
+                guard duration > 0 else { continue }
                 let end = start.addingTimeInterval(duration)
                 result.blocks.append(ScheduledBlock(taskID: task.id, start: start, end: end))
                 slots[index].start = end
                 remainingSeconds -= duration
+                dailySeconds[day, default: 0] += duration
             }
 
             if remainingSeconds > 0 {

@@ -9,7 +9,9 @@ struct TaskCreationService {
         let draft = TaskDraft(title: title, estimatedMinutesText: String(estimatedMinutes), deadline: deadline)
         let task = try model.addTask(draft, requirePersistence: true)
         return TaskCreationReceipt(task: task, unallocatedMinutes: model.unallocatedMinutes(for: task),
-                                   isScheduleSaved: model.persistenceMessage == nil)
+                                   isScheduleSaved: model.persistenceMessage == nil,
+                                   dailyLimit: model.workloadSettings.maxScheduledMinutesPerDay,
+                                   planningEnd: model.planningInterval?.end)
     }
 }
 
@@ -17,6 +19,8 @@ nonisolated struct TaskCreationReceipt: Sendable {
     let task: Task
     let unallocatedMinutes: Double
     let isScheduleSaved: Bool
+    let dailyLimit: Int?
+    let planningEnd: Date?
 
     var dialogText: String {
         let deadlineText = task.deadline.formatted(date: .abbreviated, time: .shortened)
@@ -26,8 +30,12 @@ nonisolated struct TaskCreationReceipt: Sendable {
         }
         if unallocatedMinutes > 0 {
             // Keep large, valid Int estimates out of an unsafe Double-to-Int cast.
-            let minutes = unallocatedMinutes.formatted(.number.precision(.fractionLength(0)).grouping(.never))
-            return confirmation + "現在の空き時間では締切までに\(minutes)分配置できませんでした。"
+            let minutes = unallocatedMinutes.rounded(.up).formatted(.number.precision(.fractionLength(0)).grouping(.never))
+            let constraints: String
+            if let dailyLimit { constraints = "現在の空き時間と1日\(dailyLimit)分の上限では" }
+            else { constraints = "現在の空き時間では" }
+            let period = planningEnd.map { task.deadline > $0 } == true ? "対象期間内に" : "締切までに"
+            return confirmation + "\(constraints)\(period)\(minutes)分配置できませんでした。"
         }
         return confirmation
     }

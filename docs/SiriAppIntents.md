@@ -3,6 +3,10 @@
 2026-10-12。ダウンロード済みの「PersonalGantt Phase 5 — Siri / App Intents 音声タスク追加 実装指示書」に基づく追加です。
 既存のdocs/Phase5.mdは再スケジューリングの履歴なので、この報告を別ファイルにしました。
 
+同日のv2指示書に基づく追加では、独立した[日次上限・ルーティン機能](DailyWorkloadRoutines.md)を実装しています。
+Siriの入力3項目・Shortcutは維持し、共通Schedulerへ日次上限を渡します。
+以下は最初のSiri実装時の報告です。追加後のScheduler・保存形式・全374テストの詳細はリンク先を参照してください。
+
 ## Gitと変更ファイル
 
 ブランチ: `codex/siri-app-intents`。コミット: `Add Siri task creation with App Intents`。
