@@ -13,6 +13,10 @@ nonisolated struct Scheduler: Sendable {
     ) -> SchedulingResult {
         let orderedTasks = tasks.filter { !$0.isCompleted }.sorted {
             if $0.deadline != $1.deadline { return $0.deadline < $1.deadline }
+            if $0.priority != $1.priority { return $0.priority.rawValue > $1.priority.rawValue }
+            let a = max(0, Double($0.estimatedMinutes) - (completedMinutesByTask[$0.id] ?? 0))
+            let b = max(0, Double($1.estimatedMinutes) - (completedMinutesByTask[$1.id] ?? 0))
+            if $0.priority != .normal && a != b { return a > b }
             return $0.id.uuidString < $1.id.uuidString
         }
         var slots = normalizedSlots(availableSlots)

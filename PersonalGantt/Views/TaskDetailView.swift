@@ -12,6 +12,7 @@ struct TaskDetailView: View {
                 Section("作業内容") {
                     Text(model.title(for: taskID)).font(.title2.bold())
                     if let task = model.task(for: taskID) {
+                        LabeledContent("優先度", value: task.priority.displayName)
                         LabeledContent("状態", value: task.isCompleted ? "完了" : "未完了")
                         LabeledContent("必要時間", value: "\(task.estimatedMinutes)分")
                         LabeledContent("締切", value: task.deadline.formatted(date: .abbreviated, time: .shortened))

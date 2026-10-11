@@ -102,7 +102,11 @@ final class ScheduleViewModel {
             for old in self.tasks where self.reminderTaskIDs.contains(old.id) && !newIDs.contains(old.id) {
                 self.archivedTitles[old.id] = old.title
             }
-            self.tasks = self.tasks.filter { !self.reminderTaskIDs.contains($0.id) } + imported
+            let priorities = Dictionary(uniqueKeysWithValues: self.tasks.map { ($0.id, $0.priority) })
+            let importedWithPriorities = imported.map { task in
+                var value = task; value.priority = priorities[task.id] ?? .normal; return value
+            }
+            self.tasks = self.tasks.filter { !self.reminderTaskIDs.contains($0.id) } + importedWithPriorities
             self.reminderTaskIDs = newIDs
             self.recalculate()
         }
@@ -333,7 +337,7 @@ final class ScheduleViewModel {
             Task(id: importedID(task.id), title: task.title, isCompleted: task.isCompleted,
                  estimatedMinutes: task.estimatedMinutes, deadline: task.deadline,
                  reminderIdentifier: task.reminderIdentifier.map { transfer.reminderIDs[$0] ?? $0 },
-                 routineOccurrence: task.routineOccurrence)
+                 routineOccurrence: task.routineOccurrence, priority: task.priority)
         }
         next.plan.activeWorkSession = nil
         var sessionsByID = Dictionary(uniqueKeysWithValues: workSessions.map { ($0.id, $0) })
@@ -751,7 +755,7 @@ final class ScheduleViewModel {
     func addTask(_ draft: TaskDraft, requirePersistence: Bool = false) throws -> Task {
         guard !isBackupRecoveryRequired else { throw BackupError.recoveryRequired }
         let input = try draft.validated()
-        let task = Task(title: input.title, estimatedMinutes: input.estimatedMinutes, deadline: input.deadline)
+        let task = Task(title: input.title, estimatedMinutes: input.estimatedMinutes, deadline: input.deadline, priority: input.priority)
         if requirePersistence {
             // Commit the requirement before scheduling. Siri must never report an
             // in-memory-only addition as saved, or lose it if the plan save fails.
@@ -787,12 +791,14 @@ final class ScheduleViewModel {
             else { throw ReminderServiceError.sourceOwnedFields }
             try reminders.configure(identifier: identifier, estimatedMinutesText: draft.estimatedMinutesText,
                                     deadlineOverride: record.deadline == nil ? input.deadline : nil)
+            if let newIndex = tasks.firstIndex(where: { $0.id == id }) { tasks[newIndex].priority = input.priority; recalculate() }
             return
         }
         // Preserve identity and completion when editing the work requirement.
         tasks[index].title = input.title
         tasks[index].estimatedMinutes = input.estimatedMinutes
         tasks[index].deadline = input.deadline
+        tasks[index].priority = input.priority
         recalculate()
     }
 

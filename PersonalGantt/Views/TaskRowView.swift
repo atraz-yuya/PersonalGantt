@@ -46,6 +46,7 @@ struct TaskRowView: View {
                 .font(.caption)
                 .foregroundStyle(.secondary)
             if let feasibilityMessage { Text(feasibilityMessage).font(.caption).foregroundStyle(.orange) }
+            Text("優先度: \(task.priority.displayName)").font(.caption).foregroundStyle(.secondary)
             if isReminderTask {
                 Label("Apple Reminders連携", systemImage: "checklist")
                     .font(.caption).foregroundStyle(.secondary)
