@@ -30,6 +30,9 @@ struct TaskEditorView: View {
                         #if os(iOS)
                         .keyboardType(.numberPad)
                         #endif
+                    Picker("優先度", selection: $draft.priority) {
+                        ForEach(TaskPriority.allCases, id: \.self) { Text($0.displayName).tag($0) }
+                    }
                     DatePicker(
                         "締切", selection: $draft.deadline,
                         in: Date.distantPast...Date.distantFuture,

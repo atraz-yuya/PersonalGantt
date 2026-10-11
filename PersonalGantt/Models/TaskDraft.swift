@@ -5,17 +5,20 @@ nonisolated struct TaskDraft: Equatable, Sendable {
     var title: String
     var estimatedMinutesText: String
     var deadline: Date
+    var priority: TaskPriority
 
-    init(title: String = "", estimatedMinutesText: String = "60", deadline: Date) {
+    init(title: String = "", estimatedMinutesText: String = "60", deadline: Date, priority: TaskPriority = .normal) {
         self.title = title
         self.estimatedMinutesText = estimatedMinutesText
         self.deadline = deadline
+        self.priority = priority
     }
 
     init(task: Task) {
         title = task.title
         estimatedMinutesText = String(task.estimatedMinutes)
         deadline = task.deadline
+        priority = task.priority
     }
 
     /// Share the same validation between the form and all ViewModel mutations.
@@ -30,7 +33,7 @@ nonisolated struct TaskDraft: Equatable, Sendable {
               deadline >= .distantPast, deadline <= .distantFuture else {
             throw TaskInputError.invalidDeadline
         }
-        return ValidatedTaskInput(title: trimmedTitle, estimatedMinutes: minutes, deadline: deadline)
+        return ValidatedTaskInput(title: trimmedTitle, estimatedMinutes: minutes, deadline: deadline, priority: priority)
     }
 
     var validationMessage: String? {
@@ -47,6 +50,7 @@ nonisolated struct ValidatedTaskInput: Equatable, Sendable {
     let title: String
     let estimatedMinutes: Int
     let deadline: Date
+    let priority: TaskPriority
 }
 
 nonisolated enum TaskInputError: LocalizedError, Equatable {
