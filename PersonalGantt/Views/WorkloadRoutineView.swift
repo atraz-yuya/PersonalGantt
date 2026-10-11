@@ -18,6 +18,18 @@ struct WorkloadRoutineView: View {
     var body: some View {
         NavigationStack {
             List {
+                Section("端末間の同期") {
+                    Toggle("iCloud自動同期", isOn: Binding(get: { model.syncState.isEnabled }, set: { model.setSyncEnabled($0) }))
+                        .disabled(!model.canEnableSync)
+                    if !model.canEnableSync {
+                        Text("現在の署名ではiCloud同期を利用できません。Developer Program・CloudKit設定が必要です。JSONバックアップで受け渡せます。")
+                            .font(.caption).foregroundStyle(.secondary)
+                    }
+                    if let message = model.syncMessage { Text(message).font(.caption) }
+                    if model.isSyncing { ProgressView("同期中…") }
+                    Button("今すぐ同期") { _Concurrency.Task { await model.synchronize() } }
+                        .disabled(!model.syncState.isEnabled || model.isSyncing)
+                }
                 Section("計画対象期間") {
                     Text(model.planningPeriodDescription)
                     Text("タスクの締切・ルーティンの終了日に応じて、最低14日・最長90暦日まで自動で延長します。")

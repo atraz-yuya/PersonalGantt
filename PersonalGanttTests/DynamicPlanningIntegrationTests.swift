@@ -210,7 +210,7 @@ struct DynamicPlanningIntegrationTests {
         _ = try add(source, days: 60)
         try source.saveRoutine(routine())
         let backup = try PersonalGanttBackup.decode(source.makeBackup().encoded())
-        #expect(backup.plan.version == 3 && backup.plan.calendarCoverage?.end == day(14))
+        #expect(backup.plan.version == 4 && backup.plan.calendarCoverage?.end == day(14))
         let target = model(); #expect(await target.applyCalendarSelection(["work"]))
         try target.restoreBackup(backup)
         #expect(target.planningInterval?.end == day(60) && target.calendarCoverage?.end == day(14))
@@ -219,7 +219,7 @@ struct DynamicPlanningIntegrationTests {
     @Test(arguments: [1, 2]) func legacyBackupInfersOnlyHistoricallyFetchedCoverage(version: Int) async throws {
         let value = model(); #expect(await value.applyCalendarSelection(["work"]))
         var backup = try value.makeBackup()
-        backup.plan.version = version; backup.plan.calendarCoverage = nil
+        backup.plan.version = version; backup.plan.calendarCoverage = nil; backup.plan.syncState = nil
         if version == 1 { backup.plan.workloadSettings = nil; backup.plan.routines = nil }
         let target = model(); #expect(await target.applyCalendarSelection(["work"]))
         try target.restoreBackup(PersonalGanttBackup.decode(backup.encoded()))

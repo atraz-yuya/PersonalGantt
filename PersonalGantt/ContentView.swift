@@ -45,6 +45,9 @@ struct ContentView: View {
 
     var body: some View {
         workspace
+            .onChange(of: model.syncState.records) { _, _ in
+                _Concurrency.Task { await model.synchronizeIfActive() }
+            }
             .onChange(of: model.planningInterval) { _, _ in
                 _Concurrency.Task { await model.refreshPlanningCoverageIfNeeded() }
             }
