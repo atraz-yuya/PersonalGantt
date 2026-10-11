@@ -10,6 +10,9 @@ final class ScheduleViewModel {
     private(set) var tasks: [Task]
     private(set) var workloadSettings = WorkloadSettings.unlimited
     private(set) var routines: [Routine] = []
+    private(set) var workSessions: [WorkSession] = []
+    private(set) var activeWorkSession: ActiveWorkSession?
+    private(set) var workSessionMessage: String?
     private(set) var syncState = SyncState()
     private(set) var syncMessage: String?
     private(set) var isSyncing = false
@@ -140,6 +143,8 @@ final class ScheduleViewModel {
             workloadSettings = snapshot.workloadSettings ?? .unlimited
             routines = snapshot.routines ?? []
             syncState = snapshot.syncState ?? SyncState()
+            workSessions = snapshot.workSessions ?? []
+            activeWorkSession = snapshot.activeWorkSession
             reminderTaskIDs = snapshot.reminderTaskIDs
             archivedTitles = snapshot.archivedTitles
             lastPlanSave = snapshot.savedAt
@@ -162,7 +167,7 @@ final class ScheduleViewModel {
             } else {
                 // Calendar context changed outside this checkpoint: only begun work is safe.
                 result = ScheduleReplanner().schedule(tasks: tasks, availableSlots: [],
-                    previousBlocks: snapshot.blocks, now: clock(), workloadSettings: workloadSettings, calendar: calendar)
+                    previousBlocks: snapshot.blocks, now: clock(), workloadSettings: workloadSettings, calendar: calendar, workSessions: workSessions)
                 availableSlots = []
                 calendars = []
                 fixedEvents = []
@@ -202,7 +207,7 @@ final class ScheduleViewModel {
             slots: availableSlots, calendars: calendars, selectedCalendarIDs: selectedCalendarIDs, fixedEvents: fixedEvents,
             planningStart: planningInterval?.start, planningEnd: planningInterval?.end,
             lastCalendarRefresh: lastCalendarRefresh, hasConfirmedPlan: hasConfirmedPlan, calendarScope: selectionScope,
-            workloadSettings: workloadSettings, routines: routines, calendarCoverage: calendarCoverage, syncState: syncState)
+            workloadSettings: workloadSettings, routines: routines, calendarCoverage: calendarCoverage, syncState: syncState, workSessions: workSessions, activeWorkSession: activeWorkSession)
     }
 
     var canEnableSync: Bool { syncTransport != nil }
@@ -218,6 +223,8 @@ final class ScheduleViewModel {
             let encodedTasks = try Dictionary(uniqueKeysWithValues: ordinary.map { ($0.id.uuidString, try SyncState.payloadData($0)) })
             let encodedRoutines = try Dictionary(uniqueKeysWithValues: routines.map { ($0.id.uuidString, try SyncState.payloadData($0)) })
             syncState.capture(kind: .task, values: encodedTasks, now: clock())
+            let encodedSessions = try Dictionary(uniqueKeysWithValues: workSessions.map { ($0.id.uuidString, try SyncState.payloadData($0)) })
+            syncState.capture(kind: .workSession, values: encodedSessions, now: clock())
             syncState.capture(kind: .routine, values: encodedRoutines, now: clock())
             syncState.capture(kind: .workload, values: ["settings": try SyncState.payloadData(workloadSettings)],
                 now: syncState.records["workload_settings"] == nil && workloadSettings == .unlimited ? .distantPast : clock())
@@ -244,6 +251,7 @@ final class ScheduleViewModel {
         var merged = syncState
         try merged.merge(incoming)
         var ordinary: [Task] = [], nextRoutines: [Routine] = [], nextWorkload = workloadSettings
+        var nextSessions: [WorkSession] = []
         let decoder = JSONDecoder()
         for record in merged.records.values.sorted(by: { $0.key < $1.key }) {
             guard let data = record.payload else { continue }
@@ -260,11 +268,18 @@ final class ScheduleViewModel {
             case .workload:
                 guard record.id == "settings" else { throw SyncError.invalidData }
                 nextWorkload = try decoder.decode(WorkloadSettings.self, from: data); try nextWorkload.validate()
-            case .workSession, .schedulingSettings: break
+            case .workSession:
+                let value = try decoder.decode(WorkSession.self, from: data)
+                guard value.id.uuidString == record.id, value.end <= clock() else { throw SyncError.invalidData }
+                try value.validate(); nextSessions.append(value)
+            case .schedulingSettings: break
             }
         }
         for old in tasks where !ordinary.contains(where: { $0.id == old.id }) { archivedTitles[old.id] = old.title }
         tasks = tasks.filter { reminderTaskIDs.contains($0.id) } + ordinary
+        workSessions = nextSessions
+        for session in nextSessions { archivedTitles[session.taskID] = session.taskTitle }
+        if let activeWorkSession, !tasks.contains(where: { $0.id == activeWorkSession.taskID }) { self.activeWorkSession = nil }
         routines = nextRoutines; workloadSettings = nextWorkload; syncState = merged
         recalculate()
     }
@@ -312,12 +327,17 @@ final class ScheduleViewModel {
                  reminderIdentifier: task.reminderIdentifier.map { transfer.reminderIDs[$0] ?? $0 },
                  routineOccurrence: task.routineOccurrence)
         }
+        next.plan.activeWorkSession = nil
+        var sessionsByID = Dictionary(uniqueKeysWithValues: workSessions.map { ($0.id, $0) })
+        for var session in backup.plan.workSessions ?? [] { session.taskID = importedID(session.taskID); sessionsByID[session.id] = session }
+        next.plan.workSessions = Array(sessionsByID.values).sorted { $0.id.uuidString < $1.id.uuidString }
         next.plan.reminderTaskIDs = Set(backup.plan.reminderTaskIDs.map(importedID))
         next.plan.blocks = backup.plan.blocks.map { block in
             ScheduledBlock(taskID: importedID(block.taskID), start: block.start, end: block.end)
         }
         next.plan.archivedTitles = [:]
         for (id, title) in backup.plan.archivedTitles { next.plan.archivedTitles[importedID(id)] = title }
+        for session in next.plan.workSessions ?? [] { next.plan.archivedTitles[session.taskID] = session.taskTitle }
         let protected = result.blocks.filter { $0.start <= clock() }
         for block in protected { next.plan.archivedTitles[block.taskID] = title(for: block.taskID) }
         var seen: Set<ScheduledBlock.ID> = []
@@ -349,7 +369,7 @@ final class ScheduleViewModel {
         }
         next.plan.tasks = next.plan.tasks.filter { $0.routineOccurrence == nil } + occurrenceTasks
         let recalculated = ScheduleReplanner().schedule(tasks: next.plan.tasks, availableSlots: next.plan.slots,
-            previousBlocks: next.plan.blocks, now: clock(), workloadSettings: next.plan.workloadSettings ?? .unlimited, calendar: calendar)
+            previousBlocks: next.plan.blocks, now: clock(), workloadSettings: next.plan.workloadSettings ?? .unlimited, calendar: calendar, workSessions: next.plan.workSessions ?? [])
         next.plan.blocks = recalculated.blocks
         next.plan.unscheduledTaskIDs = recalculated.unscheduledTaskIDs
         next.plan.hasConfirmedPlan = backup.plan.hasConfirmedPlan || !next.plan.blocks.isEmpty
@@ -386,6 +406,8 @@ final class ScheduleViewModel {
             while let next = mappings[current], visited.insert(current).inserted { current = next }
             return current
         }
+        for index in workSessions.indices { workSessions[index].taskID = resolved(workSessions[index].taskID) }
+        if let activeWorkSession { self.activeWorkSession?.taskID = resolved(activeWorkSession.taskID) }
         var seen: Set<ScheduledBlock.ID> = []
         result.blocks = result.blocks.map { block in
             ScheduledBlock(taskID: resolved(block.taskID), start: block.start, end: block.end)
@@ -424,11 +446,11 @@ final class ScheduleViewModel {
         if calendarProvider == nil {
             // Explicit-slot clients and existing tests retain their pure scheduler API.
             result = Scheduler().schedule(tasks: tasks, availableSlots: availableSlots,
-                                          workloadSettings: workloadSettings, calendar: calendar)
+                                          workloadSettings: workloadSettings, calendar: calendar, completedMinutesByTask: WorkSession.minutesByTask(workSessions))
         } else {
             let now = clock()
             result = ScheduleReplanner().schedule(tasks: tasks, availableSlots: availableSlots, previousBlocks: hasConfirmedPlan ? result.blocks : [],
-                                                 now: now, workloadSettings: workloadSettings, calendar: calendar)
+                                                 now: now, workloadSettings: workloadSettings, calendar: calendar, workSessions: workSessions)
             updateProtectedConflicts(now: now)
         }
         savePlan()
@@ -613,7 +635,7 @@ final class ScheduleViewModel {
             let previous = hasConfirmedPlan ? result.blocks : []
             rebuildRoutineTasks(in: range)
             let nextResult = ScheduleReplanner().schedule(tasks: tasks, availableSlots: slots, previousBlocks: previous, now: now,
-                                                        workloadSettings: workloadSettings, calendar: calendar)
+                                                        workloadSettings: workloadSettings, calendar: calendar, workSessions: workSessions)
             calendars = sources
             selectedCalendarIDs = effectiveIDs
             fixedEvents = events
@@ -694,7 +716,7 @@ final class ScheduleViewModel {
             try rebuildPlanningAvailability(now: now)
             rebuildRoutineTasks(in: routinePlanningRange)
             result = ScheduleReplanner().schedule(tasks: tasks, availableSlots: availableSlots, previousBlocks: protected, now: now,
-                                                 workloadSettings: workloadSettings, calendar: calendar)
+                                                 workloadSettings: workloadSettings, calendar: calendar, workSessions: workSessions)
             updateProtectedConflicts(now: now)
             isRestoredPlan = false
             calendarMessage = "端末のGoogle認証情報を削除しました。活動可能時間のみで配置しています。"
@@ -781,6 +803,7 @@ final class ScheduleViewModel {
             }
             return
         }
+        if activeWorkSession?.taskID == id { activeWorkSession = nil }
         archivedTitles[id] = task.title
         tasks.removeAll { $0.id == id }
         recalculate()
@@ -828,10 +851,50 @@ final class ScheduleViewModel {
     }
 
     /// Unallocated estimate, not a record of completed work.
+    func completedMinutes(for taskID: UUID) -> Double { WorkSession.minutesByTask(workSessions)[taskID] ?? 0 }
+    func remainingMinutes(for task: Task) -> Double {
+        task.isCompleted ? 0 : max(0, Double(task.estimatedMinutes) - completedMinutes(for: task.id))
+    }
     func unallocatedMinutes(for task: Task) -> Double {
         guard !task.isCompleted else { return 0 }
-        return max(0, Double(task.estimatedMinutes) - scheduledMinutes(for: task.id))
+        let planned: Double
+        if workSessions.contains(where: { $0.taskID == task.id }) {
+            planned = result.blocks.filter { $0.taskID == task.id && $0.end > clock() }.reduce(0) { total, block in
+                total + (block.start > clock() ? block.durationMinutes : WorkSession.unrecordedMinutes(in: block, sessions: workSessions))
+            }
+        } else { planned = scheduledMinutes(for: task.id) }
+        return max(0, remainingMinutes(for: task) - planned)
     }
+
+    func logWork(taskID: UUID, minutes: Int, endingAt: Date? = nil) throws {
+        guard !isBackupRecoveryRequired else { throw BackupError.recoveryRequired }
+        guard let task = task(for: taskID) else { throw TaskInputError.taskNotFound }
+        guard (1...1440).contains(minutes) else { throw WorkSessionError.invalid }
+        let end = endingAt ?? clock()
+        guard end <= clock() else { throw WorkSessionError.invalid }
+        let session = WorkSession(taskID: taskID, taskTitle: task.title,
+            start: end.addingTimeInterval(-Double(minutes) * 60), end: end, actualMinutes: minutes)
+        try session.validate()
+        workSessions.append(session); recalculate()
+    }
+    func startWork(taskID: UUID) throws {
+        guard !isBackupRecoveryRequired else { throw BackupError.recoveryRequired }
+        guard task(for: taskID) != nil else { throw TaskInputError.taskNotFound }
+        guard activeWorkSession == nil else { throw WorkSessionError.alreadyRunning }
+        activeWorkSession = ActiveWorkSession(taskID: taskID, start: clock()); savePlan()
+    }
+    func finishWork() throws {
+        guard !isBackupRecoveryRequired else { throw BackupError.recoveryRequired }
+        guard let activeWorkSession else { throw WorkSessionError.noRunningSession }
+        let end = clock(), minutes = Int(min(1441, end.timeIntervalSince(activeWorkSession.start) / 60))
+        let session = WorkSession(taskID: activeWorkSession.taskID, taskTitle: title(for: activeWorkSession.taskID),
+            start: activeWorkSession.start, end: end, actualMinutes: minutes)
+        try session.validate()
+        workSessions.append(session); self.activeWorkSession = nil; recalculate()
+    }
+    func cancelWorkTimer() { activeWorkSession = nil; savePlan() }
+    func deleteWorkSession(id: UUID) { workSessions.removeAll { $0.id == id }; recalculate() }
+
 
     func setWorkloadSettings(_ settings: WorkloadSettings) throws {
         guard !isBackupRecoveryRequired else { throw BackupError.recoveryRequired }

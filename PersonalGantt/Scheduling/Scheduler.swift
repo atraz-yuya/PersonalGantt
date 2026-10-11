@@ -7,7 +7,8 @@ nonisolated struct Scheduler: Sendable {
         alreadyAllocatedSeconds: [UUID: TimeInterval] = [:],
         workloadSettings: WorkloadSettings = .unlimited,
         calendar: Calendar = .current,
-        alreadyScheduledSecondsByDay: [Date: TimeInterval] = [:]
+        alreadyScheduledSecondsByDay: [Date: TimeInterval] = [:],
+        completedMinutesByTask: [UUID: Double] = [:]
     ) -> SchedulingResult {
         let orderedTasks = tasks.filter { !$0.isCompleted }.sorted {
             if $0.deadline != $1.deadline { return $0.deadline < $1.deadline }
@@ -33,7 +34,7 @@ nonisolated struct Scheduler: Sendable {
             }
             // Reserved planned work isn't a completion record. The default remains zero.
             let allocated = alreadyAllocatedSeconds[task.id] ?? 0
-            var remainingSeconds = max(0, Double(task.estimatedMinutes) * 60 - (allocated.isFinite ? max(0, allocated) : 0))
+            var remainingSeconds = max(0, max(0, Double(task.estimatedMinutes) - (completedMinutesByTask[task.id] ?? 0)) * 60 - (allocated.isFinite ? max(0, allocated) : 0))
 
             for index in slots.indices {
                 guard remainingSeconds > 0 else { break }
