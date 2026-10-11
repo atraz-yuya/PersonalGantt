@@ -15,6 +15,9 @@ struct TaskDetailView: View {
                         LabeledContent("状態", value: task.isCompleted ? "完了" : "未完了")
                         LabeledContent("必要時間", value: "\(task.estimatedMinutes)分")
                         LabeledContent("締切", value: task.deadline.formatted(date: .abbreviated, time: .shortened))
+                        LabeledContent("実績時間", value: "\(model.completedMinutes(for: taskID).formatted())分")
+                        LabeledContent("残り必要時間", value: "\(model.remainingMinutes(for: task).formatted())分")
+                        WorkProgressControls(model: model, taskID: taskID)
                         LabeledContent("配置時間", value: "\(model.scheduledMinutes(for: taskID).formatted())分")
                         LabeledContent("締切まで", value: "\(model.deadlineDaysRemaining(for: task))暦日")
                         LabeledContent("計画対象期間", value: model.planningPeriodDescription)
@@ -44,6 +47,17 @@ struct TaskDetailView: View {
                     } else {
                         Text("このTaskは配置対象から外れています。開始済みの時間枠を表示します。")
                             .foregroundStyle(.secondary)
+                    }
+                }
+                Section("作業実績") {
+                    let sessions = model.workSessions.filter { $0.taskID == taskID }.sorted { $0.end > $1.end }
+                    if sessions.isEmpty { Text("実績は未入力です。予定から自動では記録しません。") .foregroundStyle(.secondary) }
+                    ForEach(sessions) { session in
+                        HStack {
+                            Text("\(session.end.formatted(date: .abbreviated, time: .shortened))・\(session.actualMinutes)分")
+                            Spacer()
+                            Button("実績を削除", role: .destructive) { model.deleteWorkSession(id: session.id) }.buttonStyle(.borderless)
+                        }
                     }
                 }
                 Section("配置された時間枠") {
