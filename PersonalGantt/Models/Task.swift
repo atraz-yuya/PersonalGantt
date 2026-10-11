@@ -9,6 +9,7 @@ nonisolated struct Task: Identifiable, Codable, Equatable, Sendable {
     var deadline: Date
     /// Local association; estimatedMinutes stays in PersonalGantt.
     var reminderIdentifier: String?
+    var notBefore: Date?
     var priority: TaskPriority
     var routineOccurrence: RoutineOccurrence?
 
@@ -20,7 +21,8 @@ nonisolated struct Task: Identifiable, Codable, Equatable, Sendable {
         deadline: Date,
         reminderIdentifier: String? = nil,
         routineOccurrence: RoutineOccurrence? = nil,
-        priority: TaskPriority = .normal
+        priority: TaskPriority = .normal,
+        notBefore: Date? = nil
     ) {
         self.id = id
         self.title = title
@@ -30,8 +32,9 @@ nonisolated struct Task: Identifiable, Codable, Equatable, Sendable {
         self.reminderIdentifier = reminderIdentifier
         self.routineOccurrence = routineOccurrence
         self.priority = priority
+        self.notBefore = notBefore
     }
-    enum CodingKeys: String, CodingKey { case id, title, isCompleted, estimatedMinutes, deadline, reminderIdentifier, routineOccurrence, priority }
+    enum CodingKeys: String, CodingKey { case id, title, isCompleted, estimatedMinutes, deadline, reminderIdentifier, routineOccurrence, priority, notBefore }
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         id = try c.decode(UUID.self, forKey: .id)
@@ -41,6 +44,7 @@ nonisolated struct Task: Identifiable, Codable, Equatable, Sendable {
         deadline = try c.decode(Date.self, forKey: .deadline)
         reminderIdentifier = try c.decodeIfPresent(String.self, forKey: .reminderIdentifier)
         routineOccurrence = try c.decodeIfPresent(RoutineOccurrence.self, forKey: .routineOccurrence)
+        notBefore = try c.decodeIfPresent(Date.self, forKey: .notBefore)
         priority = try c.decodeIfPresent(TaskPriority.self, forKey: .priority) ?? .normal
     }
 }

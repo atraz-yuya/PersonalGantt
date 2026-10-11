@@ -82,6 +82,7 @@ nonisolated struct PlanSnapshot: Codable, Equatable, Sendable {
         guard validDate(savedAt), taskIDs.count == tasks.count,
               reminderTaskIDs.isSubset(of: taskIDs),
               tasks.allSatisfy({ (try? TaskDraft(task: $0).validated()) != nil &&
+                  ($0.notBefore.map(validDate) ?? true) &&
                   (!reminderTaskIDs.contains($0.id) || !($0.reminderIdentifier ?? "").isEmpty) }),
               Set(tasks.filter { reminderTaskIDs.contains($0.id) }.compactMap(\.reminderIdentifier)).count == reminderTaskIDs.count,
               Set(blocks.map(\.id)).count == blocks.count,

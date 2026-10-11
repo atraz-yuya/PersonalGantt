@@ -5,18 +5,6 @@ private enum ScheduleDisplay: String, CaseIterable, Identifiable {
     var id: Self { self }
 }
 
-struct TodayView: View {
-    @Bindable var model: ScheduleViewModel
-    let onDetail: (UUID) -> Void
-    var body: some View {
-        TimelineView(.periodic(from: .now, by: 60)) { context in
-            if let snapshot = model.daySchedule(on: context.date) {
-                ScheduleTimelineView(model: model, snapshot: snapshot, now: context.date, isToday: true, onDetail: onDetail)
-            } else { Text("今日の日付を表示できません。") }
-        }
-    }
-}
-
 struct ScheduleWorkspaceView: View {
     @Bindable var model: ScheduleViewModel
     let includesToday: Bool
@@ -46,6 +34,7 @@ struct ScheduleWorkspaceView: View {
                 Divider()
                 if let snapshot = model.daySchedule(on: display == .today ? context.date : selectedDate) {
                     if display == .gantt { GanttView(model: model, snapshot: snapshot, now: context.date, onDetail: onDetail) }
+                    else if display == .today { TodayView(model: model, onDetail: onDetail) }
                     else { ScheduleTimelineView(model: model, snapshot: snapshot, now: context.date, isToday: display == .today, onDetail: onDetail) }
                 } else { Text("選択した日を表示できません。") }
             }

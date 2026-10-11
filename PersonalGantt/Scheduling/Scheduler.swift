@@ -41,6 +41,14 @@ nonisolated struct Scheduler: Sendable {
             let allocated = alreadyAllocatedSeconds[task.id] ?? 0
             var remainingSeconds = max(0, max(0, Double(task.estimatedMinutes) - (completedMinutesByTask[task.id] ?? 0)) * 60 - (allocated.isFinite ? max(0, allocated) : 0))
 
+            if let bound = task.notBefore {
+                slots = slots.flatMap { slot -> [AvailableSlot] in
+                    if slot.start < bound && bound < slot.end {
+                        return [AvailableSlot(start: slot.start, end: bound), AvailableSlot(start: bound, end: slot.end)]
+                    }
+                    return [slot]
+                }
+            }
             var budgets: [Date: Double]? = nil
             if distributionMode == .balanced && task.routineOccurrence == nil && remainingSeconds >= 180 * 60 {
                 budgets = balancedBudgets(task: task, remaining: remainingSeconds, slots: slots,
@@ -49,6 +57,7 @@ nonisolated struct Scheduler: Sendable {
             for index in slots.indices {
                 guard remainingSeconds > 0 else { break }
                 let start = slots[index].start
+                if let bound = task.notBefore, start < bound { continue }
                 if let occurrence = task.routineOccurrence,
                    (start < occurrence.dayStart || start >= occurrence.dayEnd) { continue }
                 let latestEnd = min(slots[index].end, task.deadline)
@@ -85,7 +94,7 @@ nonisolated struct Scheduler: Sendable {
     private func balancedBudgets(task: Task, remaining: Double, slots: [AvailableSlot],
                                  used: [Date: Double], dailyLimit: Double?, calendar: Calendar) -> [Date: Double]? {
         var capacities: [Date: Double] = [:]
-        for slot in slots where slot.start < task.deadline {
+        for slot in slots where slot.start < task.deadline && slot.start >= (task.notBefore ?? .distantPast) {
             let seconds = max(0, min(slot.end, task.deadline).timeIntervalSince(slot.start))
             capacities[calendar.startOfDay(for: slot.start), default: 0] += seconds
         }
