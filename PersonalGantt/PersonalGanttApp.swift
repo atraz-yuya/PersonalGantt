@@ -6,10 +6,15 @@
 //
 
 import SwiftUI
+import AppIntents
 
 @main
 struct PersonalGanttApp: App {
-    @State private var model = ScheduleViewModel()
+    @State private var model = ScheduleViewModel.shared
+
+    init() {
+        PersonalGanttShortcuts.updateAppShortcutParameters()
+    }
 
     var body: some Scene {
         #if os(macOS)
