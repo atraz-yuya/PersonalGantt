@@ -30,12 +30,13 @@ struct TaskListView: View {
                 Section("完了タスク") { ForEach(completed) { row($0) } }
             }
             if !model.unscheduledTasks.isEmpty {
-                Section("締切までに配置できない作業") {
+                Section("未配置の作業") {
                     ForEach(model.unscheduledTasks, id: \.id.uuidString) { task in
                         Button { onDetail(task.id) } label: {
                             VStack(alignment: .leading, spacing: 4) {
                                 Text(task.title).foregroundStyle(.primary)
                                 Text("未配置 \(model.unallocatedMinutes(for: task).formatted())分").foregroundStyle(.orange)
+                                if let message = model.feasibilityMessage(for: task) { Text(message).font(.caption).foregroundStyle(.secondary) }
                             }
                         }.buttonStyle(.plain)
                     }
@@ -59,6 +60,7 @@ struct TaskListView: View {
                     onEdit: { onEdit(task) }, onDelete: { onDelete(task) },
                     onToggleCompletion: { _Concurrency.Task { await model.toggleTaskCompletion(id: task.id) } },
                     isReminderTask: model.isReminderTask(task.id), isBusy: model.taskIsBusy(task.id),
-                    canToggleCompletion: model.canToggleTask(task), onDetail: { onDetail(task.id) })
+                    canToggleCompletion: model.canToggleTask(task), onDetail: { onDetail(task.id) },
+                    feasibilityMessage: model.feasibilityMessage(for: task))
     }
 }

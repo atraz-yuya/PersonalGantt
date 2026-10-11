@@ -16,6 +16,15 @@ struct TaskDetailView: View {
                         LabeledContent("必要時間", value: "\(task.estimatedMinutes)分")
                         LabeledContent("締切", value: task.deadline.formatted(date: .abbreviated, time: .shortened))
                         LabeledContent("配置時間", value: "\(model.scheduledMinutes(for: taskID).formatted())分")
+                        LabeledContent("締切まで", value: "\(model.deadlineDaysRemaining(for: task))暦日")
+                        LabeledContent("計画対象期間", value: model.planningPeriodDescription)
+                        if let limit = model.workloadSettings.maxScheduledMinutesPerDay {
+                            LabeledContent("日次上限", value: "1日最大\(limit)分")
+                        }
+                        if let message = model.horizonCapMessage { Text(message).font(.caption).foregroundStyle(.secondary) }
+                        if let message = model.feasibilityMessage(for: task) {
+                            Label(message, systemImage: "exclamationmark.circle").foregroundStyle(.orange)
+                        }
                         if let occurrence = task.routineOccurrence {
                             Label("ルーティン・\(occurrence.dayStart.formatted(date: .abbreviated, time: .omitted))", systemImage: "repeat")
                             Text("完了はこの日の作業だけに適用します。編集ではルーティン全体の設定を変更します。")
@@ -23,10 +32,6 @@ struct TaskDetailView: View {
                         }
                         if !task.isCompleted {
                             LabeledContent("未配置時間", value: "\(model.unallocatedMinutes(for: task).formatted())分")
-                            if model.result.unscheduledTaskIDs.contains(taskID) {
-                                Label("締切・対象期間の空き時間または日次上限が不足しています。", systemImage: "exclamationmark.circle")
-                                    .foregroundStyle(.orange)
-                            }
                         }
                         if model.isReminderTask(taskID) {
                             Label("Apple Reminders連携", systemImage: "checklist")

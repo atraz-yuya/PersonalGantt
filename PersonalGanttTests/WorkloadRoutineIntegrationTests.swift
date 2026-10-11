@@ -28,7 +28,8 @@ struct WorkloadRoutineIntegrationTests {
         #expect(receipt.dialogText.contains("1日60分の上限") && receipt.dialogText.contains("60分配置できませんでした"))
         #expect(provider.reads == 0 && store.value?.tasks == [receipt.task])
         let far = try TaskCreationService(model: model).create(title: "長期", estimatedMinutes: 6000, deadline: date(23, day: 31))
-        #expect(far.dialogText.contains("対象期間内に"))
+        #expect(far.dialogText.contains("締切までに"))
+        #expect(model.planningInterval?.end == far.task.deadline)
     }
 
     @Test func routineAndManualTasksShareCapAndCalendarRefreshRespectsIt() async throws {
@@ -95,16 +96,16 @@ struct WorkloadRoutineIntegrationTests {
         let store = WorkloadPlanStore(); let clock = WorkloadClock(date: date(0))
         let provider = WorkloadCalendarProvider()
         let model = makeModel(store, provider: provider, clock: clock)
-        var value = routine(); value.endDate = date(0, day: 31)
+        var value = routine(); value.endDate = ReminderFixtures.calendar.date(byAdding: .day, value: 120, to: date(0))!
         try model.saveRoutine(value)
         await model.applicationDidBecomeActive()
-        #expect(model.tasks.count == 14)
+        #expect(model.tasks.count == 90)
         let oldIDs = Set(model.tasks.map(\.id))
         let first = try #require(model.result.blocks.first)
         provider.fail = true; clock.date = date(0, day: 8)
         await model.refreshForDayChangeIfNeeded()
-        #expect(model.tasks.count == 14 && model.result.blocks.contains(first))
-        #expect(Set(model.tasks.map(\.id)).intersection(oldIDs).count == 13)
+        #expect(model.tasks.count == 90 && model.result.blocks.contains(first))
+        #expect(Set(model.tasks.map(\.id)).intersection(oldIDs).count == 89)
         #expect(model.title(for: first.taskID) == value.title)
         #expect(model.calendarMessage != nil && model.persistenceMessage == nil)
         let added = try #require(model.tasks.first { !oldIDs.contains($0.id) })

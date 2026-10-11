@@ -22,6 +22,14 @@ nonisolated struct PlanSnapshot: Codable, Equatable, Sendable {
     /// Version 1 checkpoints decode these as nil and retain unlimited one-off scheduling.
     var workloadSettings: WorkloadSettings? = nil
     var routines: [Routine]? = nil
+    /// Version 3 separates fetched Calendar range from derived planning range.
+    var calendarCoverage: CalendarCoverage? = nil
+
+    var resolvedCalendarCoverage: CalendarCoverage? {
+        if version >= 3 { return calendarCoverage }
+        guard lastCalendarRefresh != nil, let planningStart, let planningEnd else { return nil }
+        return CalendarCoverage(start: planningStart, end: planningEnd)
+    }
 
     func validate() throws {
         func validDate(_ date: Date) -> Bool {
@@ -29,7 +37,14 @@ nonisolated struct PlanSnapshot: Codable, Equatable, Sendable {
         }
         let taskIDs = Set(tasks.map(\.id))
         let knownIDs = taskIDs.union(archivedTitles.keys)
-        guard version == 1 || version == 2 else { throw PlanStorageError.unsupportedVersion }
+        guard (1...3).contains(version) else { throw PlanStorageError.unsupportedVersion }
+        if version < 3 && calendarCoverage != nil { throw PlanStorageError.invalidSnapshot }
+        if let coverage = calendarCoverage {
+            guard validDate(coverage.start), validDate(coverage.end), coverage.start < coverage.end,
+                  lastCalendarRefresh != nil,
+                  slots.allSatisfy({ $0.start >= coverage.start && $0.end <= coverage.end })
+            else { throw PlanStorageError.invalidSnapshot }
+        }
         if version == 1 {
             guard workloadSettings == nil, routines == nil, tasks.allSatisfy({ $0.routineOccurrence == nil })
             else { throw PlanStorageError.invalidSnapshot }

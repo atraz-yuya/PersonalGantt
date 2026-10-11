@@ -28,6 +28,8 @@ struct IntegrationStatusView: View {
                 if let message = reminders.message { Text(message).font(.caption).foregroundStyle(.orange) }
             }
             if let message = model.calendarMessage { Text(message).font(.caption).foregroundStyle(.orange) }
+            Text("計画対象期間: \(model.planningPeriodDescription)").font(.caption).foregroundStyle(.secondary)
+            if let message = model.horizonCapMessage { Text(message).font(.caption).foregroundStyle(.orange) }
             if let limit = model.workloadSettings.maxScheduledMinutesPerDay {
                 Label("自動配置の上限: 1日\(limit)分", systemImage: "hourglass")
                     .font(.caption).foregroundStyle(.secondary)
