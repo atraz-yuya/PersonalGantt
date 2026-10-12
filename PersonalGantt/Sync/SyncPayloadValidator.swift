@@ -3,7 +3,9 @@ import Foundation
 nonisolated enum SyncPayloadValidator {
     static func validate(_ record: SyncRecord) throws {
         let entity = record.kind == .task || record.kind == .routine || record.kind == .workSession
-        guard entity ? UUID(uuidString: record.id) != nil : record.id == "settings" else { throw SyncError.invalidData }
+        let validID = record.kind == .reminderMetadata ? ReminderSyncMetadata.isValidID(record.id)
+            : (entity ? UUID(uuidString: record.id) != nil : record.id == "settings")
+        guard validID else { throw SyncError.invalidData }
         guard let data = record.payload else { return }
         let decoder = JSONDecoder()
         let object = try JSONSerialization.jsonObject(with: data)
@@ -15,6 +17,7 @@ nonisolated enum SyncPayloadValidator {
         case .workload: allowed = ["maxScheduledMinutesPerDay"]
         case .workSession: allowed = ["id","taskID","taskTitle","start","end","actualMinutes","reminderExternalIdentifier","reminderOccurrenceKey"]
         case .schedulingSettings: allowed = ["distributionMode","optimizeLocally","maxContinuousMinutes","minimumBreakMinutes","weights","activitySettings"]
+        case .reminderMetadata: allowed = ["externalIdentifier", "occurrenceKey", "estimatedMinutes", "supplementalDeadline", "isExcluded"]
         }
         guard Set(dictionary.keys).isSubset(of: allowed) else { throw SyncError.invalidData }
         switch record.kind {
@@ -37,6 +40,10 @@ nonisolated enum SyncPayloadValidator {
             let settings = try decoder.decode(SchedulingSettings.self, from: data)
             guard settings.isValid else { throw SyncError.invalidData }
             try validateNestedFields(dictionary, decoded: settings)
+        case .reminderMetadata:
+            let value = try decoder.decode(ReminderSyncMetadata.self, from: data)
+            try value.validate()
+            guard value.id == record.id else { throw SyncError.invalidData }
         }
     }
     /// Codable ignores unknown keys; reject extra nested fields before retaining

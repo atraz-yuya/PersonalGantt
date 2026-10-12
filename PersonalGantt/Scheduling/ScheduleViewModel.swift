@@ -105,28 +105,46 @@ final class ScheduleViewModel {
     }
 
     func attachReminders(provider: any ReminderProviding, storage: any ReminderMetadataStoring) {
-        reminders = ReminderSyncViewModel(provider: provider, storage: storage, clock: clock) { [weak self] imported in
-            guard let self else { return }
-            if let mappings = self.reminders?.transferTaskIDs, !mappings.isEmpty {
-                self.remapTransferredBlocks(mappings)
+        reminders = ReminderSyncViewModel(provider: provider, storage: storage, clock: clock,
+            onMetadataChanged: { [weak self] value in
+                guard let self else { throw ReminderServiceError.localStorage }
+                guard self.planStore != nil else { return false }
+                try self.setReminderSyncMetadata(value); return true
+            }) { [weak self] imported in
+                self?.receiveReminderTasks(imported)
+                self?.recalculate()
             }
-            let newIDs = Set(imported.map(\.id))
-            for old in self.tasks where self.reminderTaskIDs.contains(old.id) && !newIDs.contains(old.id) {
-                self.archivedTitles[old.id] = old.title
-            }
-            var priorities = Dictionary(uniqueKeysWithValues: self.tasks.map { ($0.id, $0.priority) })
-            var deferred = Dictionary(uniqueKeysWithValues: self.tasks.compactMap { task in task.notBefore.map { (task.id, $0) } })
-            for (source, target) in self.reminders?.transferTaskIDs ?? [:] {
-                if let priority = priorities[source] { priorities[target] = priority }
-                if let bound = deferred[source] { deferred[target] = bound }
-            }
-            let importedWithPriorities = imported.map { task in
-                var value = task; value.priority = priorities[task.id] ?? .normal; value.notBefore = deferred[task.id]; return value
-            }
-            self.tasks = self.tasks.filter { !self.reminderTaskIDs.contains($0.id) } + importedWithPriorities
-            self.reminderTaskIDs = newIDs
-            self.recalculate()
+        _ = reminders?.applySynchronizedMetadata(Array(syncState.records.values))
+    }
+    private func receiveReminderTasks(_ imported: [Task]) {
+        if let mappings = reminders?.transferTaskIDs, !mappings.isEmpty {
+            remapTransferredBlocks(mappings)
         }
+        let newIDs = Set(imported.map(\.id))
+        for old in tasks where reminderTaskIDs.contains(old.id) && !newIDs.contains(old.id) {
+            archivedTitles[old.id] = old.title
+        }
+        var priorities = Dictionary(uniqueKeysWithValues: tasks.map { ($0.id, $0.priority) })
+        var deferred = Dictionary(uniqueKeysWithValues: tasks.compactMap { task in task.notBefore.map { (task.id, $0) } })
+        for (source, target) in reminders?.transferTaskIDs ?? [:] {
+            if let priority = priorities[source] { priorities[target] = priority }
+            if let bound = deferred[source] { deferred[target] = bound }
+        }
+        let importedWithPriorities = imported.map { task in
+            var value = task; value.priority = priorities[task.id] ?? .normal; value.notBefore = deferred[task.id]; return value
+        }
+        tasks = tasks.filter { !reminderTaskIDs.contains($0.id) } + importedWithPriorities
+        reminderTaskIDs = newIDs
+    }
+    private func setReminderSyncMetadata(_ value: ReminderSyncMetadata) throws {
+        do {
+            try value.validate()
+            var next = syncState
+            next.captureValue(kind: .reminderMetadata, id: value.id, payload: try SyncState.payloadData(value), now: clock())
+            guard let record = next.records["reminderMetadata_" + value.id] else { throw SyncError.invalidData }
+            try applyLocalSyncRecords([record])
+            localSync?.localRecordsDidChange()
+        } catch { throw ReminderServiceError.localStorage }
     }
 
     convenience init(
@@ -166,6 +184,7 @@ final class ScheduleViewModel {
             workloadSettings = snapshot.workloadSettings ?? .unlimited
             routines = snapshot.routines ?? []
             syncState = snapshot.syncState ?? SyncState()
+            _ = reminders?.applySynchronizedMetadata(Array(syncState.records.values))
             writebackState = snapshot.writebackState ?? WritebackState()
             schedulingSettings = snapshot.schedulingSettings ?? .default
             workSessions = snapshot.workSessions ?? []
@@ -329,6 +348,7 @@ final class ScheduleViewModel {
         try mergeSyncRecords(incoming)
         guard persistenceMessage == nil else {
             tasks = before.tasks; routines = before.routines ?? []; workSessions = before.workSessions ?? []
+            _ = reminders?.applySynchronizedMetadata(Array(before.syncState?.records.values ?? Dictionary<String, SyncRecord>().values))
             activeWorkSession = before.activeWorkSession; workloadSettings = before.workloadSettings ?? .unlimited
             schedulingSettings = before.schedulingSettings ?? .default; syncState = before.syncState ?? SyncState()
             reminderTaskIDs = before.reminderTaskIDs; archivedTitles = before.archivedTitles
@@ -351,6 +371,10 @@ final class ScheduleViewModel {
     }
     private func captureSyncChanges() {
         do {
+            for value in reminders?.legacySyncMetadata() ?? [] where syncState.records["reminderMetadata_" + value.id] == nil {
+                // Unknown migration timestamps must not defeat subsequent explicit edits.
+                syncState.captureValue(kind: .reminderMetadata, id: value.id, payload: try SyncState.payloadData(value), now: .distantPast)
+            }
             let ordinary = tasks.filter { $0.routineOccurrence == nil && !reminderTaskIDs.contains($0.id) }
             let encodedTasks = try Dictionary(uniqueKeysWithValues: ordinary.map { ($0.id.uuidString, try SyncState.payloadData($0)) })
             let encodedRoutines = try Dictionary(uniqueKeysWithValues: routines.map { ($0.id.uuidString, try SyncState.payloadData($0)) })
@@ -418,6 +442,7 @@ final class ScheduleViewModel {
                 let value = try decoder.decode(WorkSession.self, from: data)
                 guard value.id.uuidString == record.id, value.end <= clock() else { throw SyncError.invalidData }
                 try value.validate(); nextSessions.append(value)
+            case .reminderMetadata: break // Validated above; projected against local EventKit below.
             case .schedulingSettings:
                 guard record.id == "settings" else { throw SyncError.invalidData }
                 nextScheduling = try decoder.decode(SchedulingSettings.self, from: data)
@@ -431,6 +456,7 @@ final class ScheduleViewModel {
         for session in nextSessions { archivedTitles[session.taskID] = session.taskTitle }
         if let activeWorkSession, !tasks.contains(where: { $0.id == activeWorkSession.taskID }) { self.activeWorkSession = nil }
         routines = nextRoutines; workloadSettings = nextWorkload; syncState = merged
+        if let imported = reminders?.applySynchronizedMetadata(Array(merged.records.values)) { receiveReminderTasks(imported) }
         recalculate()
     }
 
@@ -505,6 +531,13 @@ final class ScheduleViewModel {
         next.plan.schedulingSettings = backup.plan.schedulingSettings ?? .default
         next.plan.version = 4
         next.plan.syncState = syncState // Keep this device identity even if restoration is interrupted.
+        let restoredMetadata = Array(backup.reminders.metadata.values) + Array(backup.reminders.pendingTransfer?.values ?? Dictionary<String, ReminderTaskMetadata>().values)
+        let portableGroups = Dictionary(grouping: restoredMetadata.compactMap { ReminderSyncMetadata(metadata: $0) }, by: \.id)
+        // Ambiguous file associations must not become a portable edit on another device.
+        for values in portableGroups.values where values.count == 1 {
+            let value = values[0]
+            next.plan.syncState?.captureValue(kind: .reminderMetadata, id: value.id, payload: try SyncState.payloadData(value), now: clock())
+        }
         next.plan.workloadSettings = backup.plan.workloadSettings ?? .unlimited
         next.plan.routines = backup.plan.routines ?? []
         let restoredHorizon = try PlanningHorizonResolver().resolve(now: clock(), tasks: next.plan.tasks,
@@ -545,7 +578,7 @@ final class ScheduleViewModel {
             throw error
         }
         reminders?.adoptRestoredState(next.reminders)
-        let localSync = syncState
+        let localSync = next.plan.syncState ?? syncState
         attachPlanStore(planStore)
         syncState = localSync
         savePlan()
