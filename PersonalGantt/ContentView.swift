@@ -1,6 +1,5 @@
 import SwiftUI
 import EventKit
-import UniformTypeIdentifiers
 #if os(macOS)
 import AppKit
 #endif
@@ -18,14 +17,11 @@ struct ContentView: View {
     @State private var detail: TaskDetailRoute?
     @State private var editorAfterDetail: TaskEditorRoute?
     @State private var taskToDelete: Task?
-    @State private var showsCalendarSelection = false
-    @State private var showsReminderSelection = false
-    @State private var showsWorkloadSettings = false
-    @State private var showsBackupExport = false
-    @State private var showsBackupImport = false
-    @State private var backupDocument: BackupFileDocument?
-    @State private var importedBackup: PersonalGanttBackup?
-    @State private var backupError: String?
+    @State private var destination: AppDestination = .today
+    @State private var primaryTab: AppDestination = .today
+    @State private var showsMenu = false
+    @State private var pendingCommand: WorkspaceCommand?
+    @State private var auxiliaryDestination: AppDestination?
 
     private var isForeground: Bool {
         #if os(macOS)
@@ -108,51 +104,22 @@ struct ContentView: View {
                 guard isForeground else { return }
                 _Concurrency.Task { await model.reminders?.refresh() }
             }
-            .sheet(isPresented: $showsCalendarSelection) { CalendarSelectionView(model: model) }
-            .sheet(isPresented: $showsWorkloadSettings) { WorkloadRoutineView(model: model) }
-            .sheet(isPresented: $showsReminderSelection) {
-                if let reminders = model.reminders { ReminderSelectionView(model: reminders) }
-            }
-            .fileExporter(isPresented: $showsBackupExport, document: backupDocument, contentType: .json,
-                          defaultFilename: "PersonalGantt-Backup-" + Date().formatted(.iso8601.year().month().day())) { outcome in
-                if case .failure(let error) = outcome, !isFileCancellation(error) {
-                    backupError = "ファイルを書き出せませんでした。保存先を確認してください。"
-                }
-            }
-            .fileImporter(isPresented: $showsBackupImport, allowedContentTypes: [.json]) { outcome in
-                do {
-                    let url = try outcome.get()
-                    let granted = url.startAccessingSecurityScopedResource()
-                    defer { if granted { url.stopAccessingSecurityScopedResource() } }
-                    let size = try url.resourceValues(forKeys: [.fileSizeKey]).fileSize ?? 0
-                    guard size <= PersonalGanttBackup.maximumBytes else { throw BackupError.tooLarge }
-                    importedBackup = try PersonalGanttBackup.decode(Data(contentsOf: url))
-                } catch {
-                    if !isFileCancellation(error) {
-                        backupError = (error as? BackupError)?.localizedDescription ?? "ファイルを読み込めませんでした。現在のデータは変更していません。"
+            .sheet(isPresented: $showsMenu, onDismiss: {
+                if let command = pendingCommand { pendingCommand = nil; perform(command) }
+            }) {
+                NavigationStack {
+                    AppSidebarView(model: model, selection: auxiliaryDestination ?? primaryTab) { command in
+                        pendingCommand = command; showsMenu = false
                     }
+                    .toolbar { ToolbarItem(placement: .cancellationAction) { Button("閉じる") { showsMenu = false } } }
                 }
             }
-            .sheet(isPresented: Binding(get: { importedBackup != nil }, set: { if !$0 { importedBackup = nil } })) {
-                if let importedBackup {
-                    BackupPreviewView(model: model, backup: importedBackup) {
-                        do {
-                            try model.restoreBackup(importedBackup)
-                            self.importedBackup = nil
-                            _Concurrency.Task {
-                                await model.reminders?.loadState()
-                                await model.refreshCalendars()
-                            }
-                        } catch {
-                            self.importedBackup = nil
-                            backupError = (error as? BackupError)?.localizedDescription ?? BackupError.unavailable.localizedDescription
-                        }
-                    }
-                }
+            .sheet(item: $auxiliaryDestination) { route in
+                NavigationStack {
+                    selectedScreen(route)
+                        .toolbar { ToolbarItem(placement: .cancellationAction) { Button("閉じる") { auxiliaryDestination = nil } } }
+                }.id(route)
             }
-            .alert("バックアップ", isPresented: Binding(get: { backupError != nil }, set: { if !$0 { backupError = nil } })) {
-                Button("閉じる") { backupError = nil }
-            } message: { Text(backupError ?? "") }
             .sheet(item: $editor) { TaskEditingSheet(model: model, task: $0.task) }
             .sheet(item: $detail, onDismiss: {
                 if let pending = editorAfterDetail {
@@ -194,80 +161,60 @@ struct ContentView: View {
 
     @ViewBuilder private var workspace: some View {
         if usesCompactLayout {
-            TabView {
-                NavigationStack {
-                    screen { TodayView(model: model, onDetail: showDetail) }
-                        .navigationTitle("今日").toolbar { actions }
-                }.tabItem { Label("今日", systemImage: "sun.max") }
-                NavigationStack {
-                    screen { ScheduleWorkspaceView(model: model, includesToday: false, onDetail: showDetail) }
-                        .navigationTitle("日別予定").toolbar { actions }
-                }.tabItem { Label("日別", systemImage: "calendar") }
-                NavigationStack {
-                    screen { tasks }
-                        .navigationTitle("タスク").toolbar { actions }
-                }.tabItem { Label("タスク", systemImage: "checklist") }
+            TabView(selection: $primaryTab) {
+                ForEach([AppDestination.today, .day, .tasks]) { route in
+                    NavigationStack {
+                        selectedScreen(route)
+                            .navigationTitle(route.title)
+                            .toolbar {
+                                ToolbarItem(placement: .navigation) {
+                                    Button { showsMenu = true } label: { Label("メニュー", systemImage: "line.3.horizontal") }
+                                        .labelStyle(.iconOnly).accessibilityLabel("サイドメニューを開く")
+                                        .accessibilityIdentifier("open-sidebar")
+                                }
+                            }
+                    }.tabItem { Label(route.title, systemImage: route.symbol) }.tag(route)
+                }
             }
         } else {
             NavigationSplitView {
-                tasks.navigationTitle("タスク")
-                    .navigationSplitViewColumnWidth(min: 320, ideal: 370, max: 460)
+                AppSidebarView(model: model, selection: destination, onCommand: perform)
+                    .navigationSplitViewColumnWidth(min: 210, ideal: 245, max: 300)
             } detail: {
                 NavigationStack {
-                    screen { ScheduleWorkspaceView(model: model, onDetail: showDetail) }
-                        .navigationTitle("PersonalGantt").toolbar { actions }
-                }
+                    selectedScreen(destination).navigationTitle(destination.title)
+                }.id(destination)
             }
         }
     }
 
-    private func screen<Content: View>(@ViewBuilder content: () -> Content) -> some View {
-        VStack(spacing: 0) {
-            IntegrationStatusView(model: model, onCalendars: { showsCalendarSelection = true },
-                                  onReminders: { showsReminderSelection = true })
-            Divider()
-            content()
+    @ViewBuilder private func selectedScreen(_ route: AppDestination) -> some View {
+        switch route {
+        case .today:
+            TodayView(model: model, onDetail: showDetail, onInputQueue: { perform(.show(.inputQueue)) }, onSettings: { perform(.show(.settings)) })
+        case .day: ScheduleWorkspaceView(model: model, includesToday: false, onDetail: showDetail)
+        case .tasks:
+            TaskListView(model: model, onDetail: showDetail, onEdit: { editor = TaskEditorRoute(task: $0) },
+                onDelete: { taskToDelete = $0 }, onInputQueue: { perform(.show(.inputQueue)) })
+        case .inputQueue: InputQueueView(model: model, onSettings: { perform(.show(.settings)) })
+        case .settings: AppSettingsView(model: model)
         }
     }
 
-    private var tasks: some View {
-        TaskListView(model: model, onDetail: showDetail, onEdit: { editor = TaskEditorRoute(task: $0) },
-                     onDelete: { taskToDelete = $0 }, onReminders: { showsReminderSelection = true })
-    }
-
-    @ToolbarContentBuilder private var actions: some ToolbarContent {
-        ToolbarItemGroup {
-            Button("タスクを追加", systemImage: "plus") { editor = TaskEditorRoute(task: nil) }
-                .disabled(model.isBackupRecoveryRequired)
-                .accessibilityIdentifier("add-task")
-            Button("再計算", systemImage: "arrow.clockwise") { model.recalculate() }
-                .disabled(model.isBackupRecoveryRequired)
-            Button("作業量・ルーティン", systemImage: "repeat") { showsWorkloadSettings = true }
-                .accessibilityIdentifier("workload-routine-settings")
-            Menu("再読み込み", systemImage: "arrow.triangle.2.circlepath") {
-                Button("Google Calendarを再読み込み") { _Concurrency.Task { await model.refreshCalendars() } }
-                    .disabled(model.isLoadingCalendars)
-                if let reminders = model.reminders {
-                    Button("Remindersを再読み込み") { _Concurrency.Task { await reminders.refresh() } }
-                        .disabled(reminders.isLoading)
-                }
-            }
-            Menu("バックアップ", systemImage: "externaldrive") {
-                Button("バックアップを書き出す") {
-                    do {
-                        backupDocument = try BackupFileDocument(backup: model.makeBackup())
-                        showsBackupExport = true
-                    } catch { backupError = (error as? BackupError)?.localizedDescription ?? BackupError.unavailable.localizedDescription }
-                }.disabled(!model.canUseBackup)
-                Button("ファイルから読み込む") { showsBackupImport = true }.disabled(!model.canUseBackup)
-            }.accessibilityIdentifier("backup-menu")
+    private func perform(_ command: WorkspaceCommand) {
+        switch command {
+        case .show(let route):
+            if route.isPrimaryTab { primaryTab = route; destination = route; auxiliaryDestination = nil }
+            else if usesCompactLayout { auxiliaryDestination = route }
+            else { destination = route }
+        case .addTask: editor = TaskEditorRoute(task: nil)
+        case .refreshCalendar: _Concurrency.Task { await model.refreshCalendars() }
+        case .recalculate: model.recalculate()
         }
     }
 
     private func showDetail(_ id: UUID) { detail = TaskDetailRoute(id: id) }
-    private func isFileCancellation(_ error: Error) -> Bool {
-        (error as NSError).domain == NSCocoaErrorDomain && (error as NSError).code == NSUserCancelledError
-    }
+
 }
 
 private struct TaskEditorRoute: Identifiable {
