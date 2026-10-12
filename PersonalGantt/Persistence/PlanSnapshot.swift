@@ -72,6 +72,7 @@ nonisolated struct PlanSnapshot: Codable, Equatable, Sendable {
             }
         }
         if let writebackState { guard version >= 4, (try? writebackState.validate()) != nil else { throw PlanStorageError.invalidSnapshot } }
+        if let schedulingSettings, !schedulingSettings.isValid { throw PlanStorageError.invalidSnapshot }
         if schedulingSettings != nil && version < 4 { throw PlanStorageError.invalidSnapshot }
         if let workSessions {
             guard version >= 4, Set(workSessions.map(\.id)).count == workSessions.count,

@@ -8,10 +8,16 @@ struct WorkloadRoutineView: View {
     @State private var message: String?
     @State private var editor: RoutineEditorRoute?
     @State private var deleting: Routine?
+    @State private var restEnabled = false
+    @State private var continuousText = "90"
+    @State private var breakText = "15"
     @State private var confirmsWriteback = false
 
     init(model: ScheduleViewModel) {
         self.model = model
+        _restEnabled = State(initialValue: model.schedulingSettings.maxContinuousMinutes != nil)
+        _continuousText = State(initialValue: String(model.schedulingSettings.maxContinuousMinutes ?? 90))
+        _breakText = State(initialValue: String(model.schedulingSettings.minimumBreakMinutes ?? 15))
         _limitEnabled = State(initialValue: model.workloadSettings.maxScheduledMinutesPerDay != nil)
         _limitText = State(initialValue: String(model.workloadSettings.maxScheduledMinutesPerDay ?? 300))
     }
@@ -49,6 +55,28 @@ struct WorkloadRoutineView: View {
                     if let message = model.horizonCapMessage { Text(message).foregroundStyle(.orange) }
                     if let message = model.coverageMessage { Text(message).foregroundStyle(.orange) }
                 }
+                Section("ローカル最適化・休憩") {
+                    Toggle("ローカルで配置を最適化", isOn: Binding(get: { model.schedulingSettings.optimizeLocally == true }, set: { model.setLocalOptimization($0) }))
+                    Text("締切と上限を守る候補から、配置量・偏り・分割を評価して選びます。外部AIへ個人データを送りません。")
+                        .font(.caption).foregroundStyle(.secondary)
+                    Toggle("連続作業の間に休憩を確保", isOn: $restEnabled)
+                    if restEnabled {
+                        TextField("最大連続作業（分）", text: $continuousText)
+                        TextField("最低休憩（分）", text: $breakText)
+                    }
+                    Button("休憩設定を保存") {
+                        do {
+                            if restEnabled {
+                                guard let maximum = Int(continuousText), let rest = Int(breakText) else { throw AvailabilityError.invalidSettings }
+                                try model.setRestSettings(maximumMinutes: maximum, minimumBreakMinutes: rest)
+                            } else { try model.setRestSettings(maximumMinutes: nil, minimumBreakMinutes: nil) }
+                            message = model.persistenceMessage ?? "休憩設定を反映しました。"
+                        } catch { message = error.localizedDescription }
+                    }
+                    Text("未来の作業枠に休憩用の空白を確保します。開始済みの枠は保持します。")
+                        .font(.caption).foregroundStyle(.secondary)
+                    if let message { Text(message).font(.caption).foregroundStyle(.secondary) }
+                }.disabled(model.isBackupRecoveryRequired)
                 Section("長期作業の配置") {
                     Picker("配置方法", selection: Binding(get: { model.schedulingSettings.distributionMode }, set: { model.setDistributionMode($0) })) {
                         ForEach(DistributionMode.allCases, id: \.self) { Text($0.displayName).tag($0) }

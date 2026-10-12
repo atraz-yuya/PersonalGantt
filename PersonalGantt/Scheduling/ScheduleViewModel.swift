@@ -186,7 +186,7 @@ final class ScheduleViewModel {
             } else {
                 // Calendar context changed outside this checkpoint: only begun work is safe.
                 result = ScheduleReplanner().schedule(tasks: tasks, availableSlots: [],
-                    previousBlocks: snapshot.blocks, now: clock(), workloadSettings: workloadSettings, calendar: calendar, workSessions: workSessions, distributionMode: schedulingSettings.distributionMode)
+                    previousBlocks: snapshot.blocks, now: clock(), workloadSettings: workloadSettings, calendar: calendar, workSessions: workSessions, distributionMode: schedulingSettings.distributionMode, optimizationSettings: schedulingSettings)
                 availableSlots = []
                 calendars = []
                 fixedEvents = []
@@ -344,6 +344,7 @@ final class ScheduleViewModel {
             case .schedulingSettings:
                 guard record.id == "settings" else { throw SyncError.invalidData }
                 nextScheduling = try decoder.decode(SchedulingSettings.self, from: data)
+                guard nextScheduling.isValid else { throw SyncError.invalidData }
             }
         }
         for old in tasks where !ordinary.contains(where: { $0.id == old.id }) { archivedTitles[old.id] = old.title }
@@ -443,7 +444,7 @@ final class ScheduleViewModel {
         }
         next.plan.tasks = next.plan.tasks.filter { $0.routineOccurrence == nil } + occurrenceTasks
         let recalculated = ScheduleReplanner().schedule(tasks: next.plan.tasks, availableSlots: next.plan.slots,
-            previousBlocks: next.plan.blocks, now: clock(), workloadSettings: next.plan.workloadSettings ?? .unlimited, calendar: calendar, workSessions: next.plan.workSessions ?? [], distributionMode: next.plan.schedulingSettings?.distributionMode ?? .earliestFirst)
+            previousBlocks: next.plan.blocks, now: clock(), workloadSettings: next.plan.workloadSettings ?? .unlimited, calendar: calendar, workSessions: next.plan.workSessions ?? [], distributionMode: next.plan.schedulingSettings?.distributionMode ?? .earliestFirst, optimizationSettings: next.plan.schedulingSettings)
         next.plan.blocks = recalculated.blocks
         next.plan.unscheduledTaskIDs = recalculated.unscheduledTaskIDs
         next.plan.hasConfirmedPlan = backup.plan.hasConfirmedPlan || !next.plan.blocks.isEmpty
@@ -519,12 +520,12 @@ final class ScheduleViewModel {
         } catch { calendarMessage = safeMessage(error) }
         if calendarProvider == nil {
             // Explicit-slot clients and existing tests retain their pure scheduler API.
-            result = Scheduler().schedule(tasks: tasks, availableSlots: availableSlots,
-                                          workloadSettings: workloadSettings, calendar: calendar, completedMinutesByTask: WorkSession.minutesByTask(workSessions), distributionMode: schedulingSettings.distributionMode)
+            result = ScheduleOptimizationEngine().schedule(OptimizationRequest(tasks: tasks, slots: availableSlots,
+                completedMinutes: WorkSession.minutesByTask(workSessions), workload: workloadSettings, settings: schedulingSettings, calendar: calendar))
         } else {
             let now = clock()
             result = ScheduleReplanner().schedule(tasks: tasks, availableSlots: availableSlots, previousBlocks: hasConfirmedPlan ? result.blocks : [],
-                                                 now: now, workloadSettings: workloadSettings, calendar: calendar, workSessions: workSessions, distributionMode: schedulingSettings.distributionMode)
+                                                 now: now, workloadSettings: workloadSettings, calendar: calendar, workSessions: workSessions, distributionMode: schedulingSettings.distributionMode, optimizationSettings: schedulingSettings)
             updateProtectedConflicts(now: now)
         }
         lastRecalculation = clock()
@@ -710,7 +711,7 @@ final class ScheduleViewModel {
             let previous = hasConfirmedPlan ? result.blocks : []
             rebuildRoutineTasks(in: range)
             let nextResult = ScheduleReplanner().schedule(tasks: tasks, availableSlots: slots, previousBlocks: previous, now: now,
-                                                        workloadSettings: workloadSettings, calendar: calendar, workSessions: workSessions, distributionMode: schedulingSettings.distributionMode)
+                                                        workloadSettings: workloadSettings, calendar: calendar, workSessions: workSessions, distributionMode: schedulingSettings.distributionMode, optimizationSettings: schedulingSettings)
             calendars = sources
             selectedCalendarIDs = effectiveIDs
             fixedEvents = events
@@ -794,7 +795,7 @@ final class ScheduleViewModel {
             try rebuildPlanningAvailability(now: now)
             rebuildRoutineTasks(in: routinePlanningRange)
             result = ScheduleReplanner().schedule(tasks: tasks, availableSlots: availableSlots, previousBlocks: protected, now: now,
-                                                 workloadSettings: workloadSettings, calendar: calendar, workSessions: workSessions, distributionMode: schedulingSettings.distributionMode)
+                                                 workloadSettings: workloadSettings, calendar: calendar, workSessions: workSessions, distributionMode: schedulingSettings.distributionMode, optimizationSettings: schedulingSettings)
             updateProtectedConflicts(now: now)
             isRestoredPlan = false
             calendarMessage = "端末のGoogle認証情報を削除しました。活動可能時間のみで配置しています。"
@@ -982,6 +983,18 @@ final class ScheduleViewModel {
     func cancelWorkTimer() { activeWorkSession = nil; savePlan() }
     func deleteWorkSession(id: UUID) { workSessions.removeAll { $0.id == id }; recalculate() }
 
+
+    func setLocalOptimization(_ enabled: Bool) {
+        guard !isBackupRecoveryRequired else { return }
+        schedulingSettings.optimizeLocally = enabled; recalculate()
+    }
+    func setRestSettings(maximumMinutes: Int?, minimumBreakMinutes: Int?) throws {
+        guard !isBackupRecoveryRequired else { throw BackupError.recoveryRequired }
+        var value = schedulingSettings
+        value.maxContinuousMinutes = maximumMinutes; value.minimumBreakMinutes = minimumBreakMinutes
+        guard value.isValid else { throw AvailabilityError.invalidSettings }
+        schedulingSettings = value; recalculate()
+    }
 
     func setDistributionMode(_ mode: DistributionMode) {
         guard !isBackupRecoveryRequired else { return }
