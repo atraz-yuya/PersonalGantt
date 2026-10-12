@@ -292,7 +292,7 @@ final class ScheduleViewModel {
     func configureLocalSync(link: (any LocalSyncLink)? = nil, store: (any LocalSyncPreferenceStoring)? = nil) {
         let name = MultipeerLocalLink.deviceName
         localSync = LocalSyncTransport(deviceID: syncState.deviceID, displayName: name,
-            link: link ?? MultipeerLocalLink(deviceID: syncState.deviceID, name: name),
+            link: link ?? AdaptiveLocalLink(deviceID: syncState.deviceID, name: name),
             store: store ?? LocalSyncKeychainPreferences(),
             snapshot: { [weak self] in
                 guard let self, self.canEnableLocalSync, self.persistenceMessage == nil else { throw LocalSyncError.storage }

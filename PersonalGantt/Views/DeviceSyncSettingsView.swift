@@ -37,7 +37,7 @@ private struct LocalSyncSettingsSections: View {
             if let message = model.persistenceMessage { Text(message).font(.caption).foregroundStyle(.orange) }
             if local.isSyncing { ProgressView("同期中…") }
             Button("今すぐ同期") { _Concurrency.Task { await local.syncNow() } }
-                .disabled(!local.preferences.enabled || local.isSyncing || !model.canEnableLocalSync || local.preferences.trustedDevice == nil)
+                .disabled(!local.preferences.enabled || local.isSyncing || !model.canEnableLocalSync)
                 .accessibilityIdentifier("local-sync-now")
             Text("両端末でPersonalGanttを開くと自動接続します。iPhoneがバックグラウンドの間は同期を停止し、次に開いたときに再開します。Macはアプリ起動中に待ち受けます。スリープ中は同期できません。")
                 .font(.caption).foregroundStyle(.secondary)

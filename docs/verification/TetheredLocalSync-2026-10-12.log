@@ -1,0 +1,123 @@
+Real hardware logs only. Names, UUIDs and certificate hashes anonymized. No task bodies, payloads, codes, nonces or private keys.
+
+Initial pairing / real Mac
+2026-10-12 21:44:59.625 [LocalSync] identity.validated peer=- fingerprint=MAC_CERT_SHA256 algorithm=RSA2048 firstType=SecIdentity publicKeysMatch=true signatureVerified=true
+2026-10-12 21:44:59.653 [LocalSync] identity.validated peer=- fingerprint=MAC_CERT_SHA256 algorithm=RSA2048 firstType=SecIdentity publicKeysMatch=true signatureVerified=true
+2026-10-12 21:44:59.655 [LocalSync] session.created peer=Mac Neo fingerprint=MAC_CERT_SHA256 firstType=SecIdentity encryption=required delegateAttached=true
+2026-10-12 21:44:59.681 [LocalSync] network.listener.ready peer=- fingerprint=- includePeerToPeer=true
+2026-10-12 21:45:00.604 [LocalSync] network.discovery peer=iPhone fingerprint=- id=IPHONE_UUID interfaces=en0:wifi,awdl0:wifi includePeerToPeer=true
+2026-10-12 21:45:00.604 [LocalSync] transport.candidate peer=iPhone fingerprint=- id=IPHONE_UUID route=network
+2026-10-12 21:45:00.660 [LocalSync] discovery.found peer=iPhone fingerprint=- pairing=true
+2026-10-12 21:45:00.660 [LocalSync] transport.candidate peer=iPhone fingerprint=- id=IPHONE_UUID route=multipeer
+2026-10-12 21:45:14.490 [LocalSync] transport.connect peer=iPhone fingerprint=- id=IPHONE_UUID route=network
+2026-10-12 21:45:14.490 [LocalSync] network.connection.start peer=IPHONE_UUID fingerprint=- includePeerToPeer=true direction=outgoing
+2026-10-12 21:45:14.492 [LocalSync] network.path peer=- fingerprint=- status=satisfied interfaces=en0:wifi,en0:wifi includePeerToPeer=true
+2026-10-12 21:45:14.494 [LocalSync] network.connection.state peer=- fingerprint=- state=preparing
+2026-10-12 21:45:14.561 [LocalSync] network.certificate.callback peer=IPHONE_UUID fingerprint=IPHONE_CERT_SHA256 accept=true reason=pairingCandidate outgoing=true
+2026-10-12 21:45:14.565 [LocalSync] network.connection.connected peer=iPhone fingerprint=IPHONE_CERT_SHA256 id=IPHONE_UUID mutualTLS=true
+2026-10-12 21:45:14.565 [LocalSync] transport.winner peer=iPhone fingerprint=IPHONE_CERT_SHA256 id=IPHONE_UUID route=network
+2026-10-12 21:45:14.566 [LocalSync] protocol.sent peer=iPhone fingerprint=- kind=hello
+2026-10-12 21:45:14.576 [LocalSync] protocol.received peer=iPhone fingerprint=- kind=hello
+2026-10-12 21:45:14.577 [LocalSync] pairing.codeDisplayed peer=iPhone fingerprint=- workDataAllowed=false
+2026-10-12 21:45:17.970 [LocalSync] protocol.received peer=iPhone fingerprint=- kind=approve
+2026-10-12 21:45:18.684 [LocalSync] protocol.received peer=iPhone fingerprint=- kind=approve
+2026-10-12 21:45:19.385 [LocalSync] protocol.received peer=iPhone fingerprint=- kind=approve
+2026-10-12 21:45:19.974 [LocalSync] protocol.received peer=iPhone fingerprint=- kind=approve
+2026-10-12 21:45:20.333 [LocalSync] protocol.received peer=iPhone fingerprint=- kind=approve
+2026-10-12 21:45:21.346 [LocalSync] protocol.received peer=iPhone fingerprint=- kind=approve
+2026-10-12 21:45:23.176 [LocalSync] protocol.sent peer=iPhone fingerprint=- kind=approve
+2026-10-12 21:45:23.184 [LocalSync] protocol.sent peer=iPhone fingerprint=- kind=ready
+2026-10-12 21:45:23.233 [LocalSync] protocol.received peer=iPhone fingerprint=- kind=ready
+2026-10-12 21:45:23.520 [LocalSync] network.path peer=- fingerprint=- status=satisfied interfaces=en0:wifi,en0:wifi includePeerToPeer=true
+2026-10-12 21:45:23.520 [LocalSync] network.path peer=- fingerprint=- status=satisfied interfaces=en0:wifi,en0:wifi includePeerToPeer=true
+2026-10-12 21:45:23.939 [LocalSync] sync.start peer=iPhone fingerprint=-
+2026-10-12 21:45:24.081 [LocalSync] protocol.received peer=iPhone fingerprint=- kind=records
+2026-10-12 21:45:24.102 [LocalSync] protocol.sent peer=iPhone fingerprint=- kind=ack
+2026-10-12 21:45:24.272 [LocalSync] protocol.received peer=iPhone fingerprint=- kind=ack
+2026-10-12 21:45:24.296 [LocalSync] sync.success peer=iPhone fingerprint=-
+
+Restart and one-click / real Mac
+2026-10-12 22:01:57.389 [LocalSync] identity.validated peer=- fingerprint=MAC_CERT_SHA256 algorithm=RSA2048 firstType=SecIdentity publicKeysMatch=true signatureVerified=true
+2026-10-12 22:01:57.456 [LocalSync] identity.validated peer=- fingerprint=MAC_CERT_SHA256 algorithm=RSA2048 firstType=SecIdentity publicKeysMatch=true signatureVerified=true
+2026-10-12 22:01:57.463 [LocalSync] session.created peer=Mac Neo fingerprint=MAC_CERT_SHA256 firstType=SecIdentity encryption=required delegateAttached=true
+2026-10-12 22:01:57.572 [LocalSync] network.listener.ready peer=- fingerprint=- includePeerToPeer=true
+2026-10-12 22:02:28.783 [LocalSync] discovery.found peer=iPhone fingerprint=- pairing=false
+2026-10-12 22:02:28.784 [LocalSync] transport.candidate peer=iPhone fingerprint=- id=IPHONE_UUID route=multipeer
+2026-10-12 22:02:28.785 [LocalSync] transport.primary.search peer=iPhone fingerprint=-
+2026-10-12 22:02:29.769 [LocalSync] network.discovery peer=iPhone fingerprint=- id=IPHONE_UUID interfaces=en0:wifi,awdl0:wifi includePeerToPeer=true
+2026-10-12 22:02:29.769 [LocalSync] transport.candidate peer=iPhone fingerprint=- id=IPHONE_UUID route=network
+2026-10-12 22:02:29.769 [LocalSync] transport.connect peer=iPhone fingerprint=- id=IPHONE_UUID route=network
+2026-10-12 22:02:29.770 [LocalSync] network.connection.start peer=IPHONE_UUID fingerprint=- includePeerToPeer=true direction=outgoing
+2026-10-12 22:02:29.777 [LocalSync] network.path peer=- fingerprint=- status=satisfied interfaces=en0:wifi,en0:wifi includePeerToPeer=true
+2026-10-12 22:02:29.778 [LocalSync] network.connection.state peer=- fingerprint=- state=preparing
+2026-10-12 22:02:29.990 [LocalSync] network.certificate.callback peer=IPHONE_UUID fingerprint=IPHONE_CERT_SHA256 accept=true reason=trustedFingerprint outgoing=true
+2026-10-12 22:02:30.004 [LocalSync] network.connection.connected peer=iPhone fingerprint=IPHONE_CERT_SHA256 id=IPHONE_UUID mutualTLS=true
+2026-10-12 22:02:30.005 [LocalSync] transport.winner peer=iPhone fingerprint=IPHONE_CERT_SHA256 id=IPHONE_UUID route=network
+2026-10-12 22:02:30.006 [LocalSync] protocol.sent peer=iPhone fingerprint=- kind=hello
+2026-10-12 22:02:30.022 [LocalSync] protocol.received peer=iPhone fingerprint=- kind=hello
+2026-10-12 22:02:30.022 [LocalSync] protocol.sent peer=iPhone fingerprint=- kind=ready
+2026-10-12 22:02:30.022 [LocalSync] protocol.received peer=iPhone fingerprint=- kind=ready
+2026-10-12 22:02:30.733 [LocalSync] sync.start peer=iPhone fingerprint=-
+2026-10-12 22:02:30.794 [LocalSync] protocol.received peer=iPhone fingerprint=- kind=records
+2026-10-12 22:02:30.835 [LocalSync] protocol.sent peer=iPhone fingerprint=- kind=ack
+2026-10-12 22:02:30.844 [LocalSync] protocol.received peer=iPhone fingerprint=- kind=ack
+2026-10-12 22:02:30.855 [LocalSync] sync.success peer=iPhone fingerprint=-
+2026-10-12 22:02:43.020 [LocalSync] sync.start peer=iPhone fingerprint=-
+2026-10-12 22:02:43.166 [LocalSync] protocol.received peer=iPhone fingerprint=- kind=ack
+2026-10-12 22:02:43.205 [LocalSync] sync.success peer=iPhone fingerprint=-
+
+Final automatic reconnect / real Mac
+2026-10-12 22:07:47.925 [LocalSync] identity.validated peer=- fingerprint=MAC_CERT_SHA256 algorithm=RSA2048 firstType=SecIdentity publicKeysMatch=true signatureVerified=true
+2026-10-12 22:07:47.976 [LocalSync] identity.validated peer=- fingerprint=MAC_CERT_SHA256 algorithm=RSA2048 firstType=SecIdentity publicKeysMatch=true signatureVerified=true
+2026-10-12 22:07:47.982 [LocalSync] session.created peer=Mac Neo fingerprint=MAC_CERT_SHA256 firstType=SecIdentity encryption=required delegateAttached=true
+2026-10-12 22:07:48.173 [LocalSync] network.listener.ready peer=- fingerprint=- includePeerToPeer=true
+2026-10-12 22:08:07.940 [LocalSync] discovery.found peer=iPhone fingerprint=- pairing=false
+2026-10-12 22:08:07.941 [LocalSync] transport.candidate peer=iPhone fingerprint=- id=IPHONE_UUID route=multipeer
+2026-10-12 22:08:07.942 [LocalSync] transport.primary.search peer=iPhone fingerprint=-
+2026-10-12 22:08:08.929 [LocalSync] network.discovery peer=iPhone fingerprint=- id=IPHONE_UUID interfaces=en0:wifi,awdl0:wifi includePeerToPeer=true
+2026-10-12 22:08:08.929 [LocalSync] transport.candidate peer=iPhone fingerprint=- id=IPHONE_UUID route=network
+2026-10-12 22:08:08.929 [LocalSync] transport.connect peer=iPhone fingerprint=- id=IPHONE_UUID route=network
+2026-10-12 22:08:08.930 [LocalSync] network.connection.start peer=IPHONE_UUID fingerprint=- includePeerToPeer=true direction=outgoing
+2026-10-12 22:08:08.934 [LocalSync] network.path peer=- fingerprint=- status=satisfied interfaces=en0:wifi,en0:wifi includePeerToPeer=true
+2026-10-12 22:08:08.935 [LocalSync] network.connection.state peer=- fingerprint=- state=preparing
+2026-10-12 22:08:09.141 [LocalSync] network.certificate.callback peer=IPHONE_UUID fingerprint=IPHONE_CERT_SHA256 accept=true reason=trustedFingerprint outgoing=true
+2026-10-12 22:08:09.149 [LocalSync] network.connection.connected peer=iPhone fingerprint=IPHONE_CERT_SHA256 id=IPHONE_UUID mutualTLS=true
+2026-10-12 22:08:09.149 [LocalSync] transport.winner peer=iPhone fingerprint=IPHONE_CERT_SHA256 id=IPHONE_UUID route=network
+2026-10-12 22:08:09.150 [LocalSync] protocol.sent peer=iPhone fingerprint=- kind=hello
+2026-10-12 22:08:09.196 [LocalSync] protocol.received peer=iPhone fingerprint=- kind=hello
+2026-10-12 22:08:09.196 [LocalSync] protocol.sent peer=iPhone fingerprint=- kind=ready
+2026-10-12 22:08:09.212 [LocalSync] protocol.received peer=iPhone fingerprint=- kind=ready
+2026-10-12 22:08:09.916 [LocalSync] sync.start peer=iPhone fingerprint=-
+2026-10-12 22:08:09.952 [LocalSync] protocol.received peer=iPhone fingerprint=- kind=records
+2026-10-12 22:08:09.976 [LocalSync] protocol.sent peer=iPhone fingerprint=- kind=ack
+2026-10-12 22:08:09.993 [LocalSync] protocol.received peer=iPhone fingerprint=- kind=ack
+2026-10-12 22:08:10.002 [LocalSync] sync.success peer=iPhone fingerprint=-
+
+Final reconnect / real iPhone
+[LocalSync] identity.validated peer=- fingerprint=IPHONE_CERT_SHA256 algorithm=RSA2048 firstType=SecIdentity publicKeysMatch=true signatureVerified=true
+[LocalSync] identity.validated peer=- fingerprint=IPHONE_CERT_SHA256 algorithm=RSA2048 firstType=SecIdentity publicKeysMatch=true signatureVerified=true
+[LocalSync] session.created peer=iPhone fingerprint=IPHONE_CERT_SHA256 firstType=SecIdentity encryption=required delegateAttached=true
+[LocalSync] network.listener.ready peer=- fingerprint=- includePeerToPeer=true
+[LocalSync] network.discovery peer=Mac Neo fingerprint=- id=MAC_UUID interfaces=bridge100:wiredEthernet includePeerToPeer=true
+[LocalSync] transport.candidate peer=Mac Neo fingerprint=- id=MAC_UUID route=network
+[LocalSync] discovery.found peer=Mac Neo fingerprint=- pairing=false
+[LocalSync] transport.candidate peer=Mac Neo fingerprint=- id=MAC_UUID route=multipeer
+[LocalSync] network.discovery peer=Mac Neo fingerprint=- id=MAC_UUID interfaces=bridge100:wiredEthernet,awdl0:wifi includePeerToPeer=true
+[LocalSync] transport.candidate peer=Mac Neo fingerprint=- id=MAC_UUID route=network
+[LocalSync] network.discovery peer=Mac Neo fingerprint=- id=MAC_UUID interfaces=bridge100:wiredEthernet,awdl0:wifi includePeerToPeer=true
+[LocalSync] transport.candidate peer=Mac Neo fingerprint=- id=MAC_UUID route=network
+[LocalSync] network.connection.start peer=- fingerprint=- includePeerToPeer=true direction=incoming
+[LocalSync] network.path peer=- fingerprint=- status=satisfied interfaces=bridge100:wiredEthernet includePeerToPeer=true
+[LocalSync] network.connection.state peer=- fingerprint=- state=preparing
+[LocalSync] network.certificate.callback peer=MAC_UUID fingerprint=MAC_CERT_SHA256 accept=true reason=trustedFingerprint outgoing=false
+[LocalSync] network.connection.connected peer=Mac Neo fingerprint=MAC_CERT_SHA256 id=MAC_UUID mutualTLS=true
+[LocalSync] transport.winner peer=Mac Neo fingerprint=MAC_CERT_SHA256 id=MAC_UUID route=network
+[LocalSync] protocol.sent peer=Mac Neo fingerprint=- kind=hello
+[LocalSync] protocol.received peer=Mac Neo fingerprint=- kind=hello
+[LocalSync] protocol.sent peer=Mac Neo fingerprint=- kind=ready
+[LocalSync] protocol.received peer=Mac Neo fingerprint=- kind=ready
+[LocalSync] sync.start peer=Mac Neo fingerprint=-
+[LocalSync] protocol.received peer=Mac Neo fingerprint=- kind=records
+[LocalSync] protocol.sent peer=Mac Neo fingerprint=- kind=ack
+[LocalSync] protocol.received peer=Mac Neo fingerprint=- kind=ack
+[LocalSync] sync.success peer=Mac Neo fingerprint=-

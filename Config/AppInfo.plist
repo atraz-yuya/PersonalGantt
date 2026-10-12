@@ -8,5 +8,6 @@
 	<key>NSBonjourServices</key>
 	<array>
 		<string>_pgantt-sync._tcp</string>
+		<string>_pgantt-link._tcp</string>
 	</array>
 </dict></plist>

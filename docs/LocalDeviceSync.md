@@ -1,5 +1,7 @@
 # Mac Neo ↔ iPhone ローカル自動同期（2026-10-12）
 
+最新の構成はNetwork.frameworkを優先しMPCをfallbackにします。テザリングでの実機成功と未検証範囲は[テザリング同期の実装・検証報告](TetheredLocalSync.md)を参照してください。以下は初期実装時の記録です。
+
 ブランチ: `codex/local-device-sync`。コミットは実装完了メッセージに記載します。
 
 ## 実装と変更ファイル
