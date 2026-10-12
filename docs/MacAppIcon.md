@@ -4,7 +4,11 @@
 
 既存の `AppIcon.appiconset` は、iOS用の1024px画像とmac idiomの10枠を含んでいました。変更前のmacOSビルドにも `AppIcon.icns` と `CFBundleIconName=AppIcon` があり、icnsを展開すると正しいPersonalGantt画像でした。画像欠落・mac idiomの未設定ではありません。
 
-古いBundle参照・起動登録・アイコンキャッシュが残っていた可能性があります。以前はビルド生成物内の実行ファイルから直接起動していた経路もありました。今回はmacOSのアイコン参照を専用assetへ分離し、ビルド出力をクリーンして旧アプリを終了、Finderから正式な `.app` Bundleを起動しました。この変更と再起動後、Dock・アプリスイッチャー・Finderの正常表示を確認しています。キャッシュと起動経路のどちらが単独の原因だったかは断定していません。
+その後、ユーザーのスクリーンショットで白いDockアイコンがまだあると分かり、起動中のプロセスを再調査しました。同じBundle ID・同じXcode生成物のパスでPersonalGanttが2つ起動しており、NSRunningApplication.iconを個別に読み出すと、片方がスクリーンショットと同じ白い汎用アイコン、もう片方が正しいPersonalGantt画像でした。古い起動分に汎用アイコンが残っていることを直接確認できました。
+
+前回は新しい起動分の正常表示を確認し、古い起動分の残存を見落としていました。通常の終了操作で両方を閉じ、起動中の対象プロセスが0になったことを確認してから、Dockが指していたXcodeの最新版Bundleを開き直しました。現在は1プロセスだけで、OSが返すアイコンも正しいPersonalGantt画像です。アイコンキャッシュ全体やDock設定、保存データは削除していません。
+
+この再起動後、ユーザーが「白いアイコンは消えました」とDockからの消失を確認しました。
 
 ## 2. 変更したファイル
 
@@ -57,6 +61,7 @@ ASSETCATALOG_COMPILER_APPICON_NAME[sdk=macosx*] = AppIconMac
 - Finderの「情報を見る」の小アイコンと大きいプレビューで正しいデザインを視覚確認。
 - 起動中アプリのBundle URLが最新ビルドであることと、NSRunningApplication.iconが正しい1024px画像を返すことを確認。
 - Mac NeoのユーザーがDock、⌘Tabのアプリスイッチャーの両方で正常表示を確認。
+- 追加スクリーンショットで別の白い起動分の残存が判明。2プロセスのアイコンを個別検証し、両方を通常終了後、Xcode生成物を単一起動して正しいアイコンを再確認。
 
 ビルド生成物:
 
@@ -71,3 +76,7 @@ iPhone 15向けの署名済みiOSビルドが成功しました。actoolは従�
 今回のクリーンビルド、旧アプリ終了、最新版のBundle起動、Dock/アプリスイッチャー/Finder確認は実施済みです。
 
 今後はXcodeで実行先をMy MacにしてRunするか、最新の `PersonalGantt.app` 自体をFinderから開いてください。`Contents/MacOS/PersonalGantt` という実行ファイルを直接起動する経路は避けます。Dockの固定項目が別の古いコピーを指している場合は、新しいBundleで起動し直してから固定し直してください。アプリのデータコンテナや設定の初期化は不要です。
+
+今回追加で開き直した、Dockと同じXcodeのBundle:
+
+`/Users/atraz/Library/Developer/Xcode/DerivedData/PersonalGantt-dfadruwwflpjsifceqjulslvfakm/Build/Products/Debug/PersonalGantt.app`
