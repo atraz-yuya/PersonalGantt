@@ -107,6 +107,34 @@ struct LocalCertificateDecisionTests {
 }
 
 @MainActor struct LocalSyncPairingTests {
+    @Test func oneClickWaitsForLateDiscoveryAndSyncsFromEitherDevice() async throws {
+        for initiatorIsMac in [true, false] {
+            let pair = makeTransportPair(trusted: true)
+            let initiator = initiatorIsMac ? pair.a : pair.b
+            let request = _Concurrency.Task { @MainActor in await initiator.syncNow() }
+            await settle()
+            #expect(initiator.isSyncing && initiator.preferences.lastSync == nil)
+            if initiatorIsMac { pair.al.onEvent?(.found(peerB)) } else { pair.bl.onEvent?(.found(peerA)) }
+            await request.value
+            #expect(initiator.isConnected && !initiator.isSyncing && initiator.preferences.lastSync != nil)
+            #expect(pair.aState.value.records == pair.bState.value.records)
+            pair.a.setAvailable(false); pair.b.setAvailable(false)
+        }
+    }
+    @Test func backgroundingEndsDiscoveryWaitWithoutSendingRecords() async {
+        let pair = makeTransportPair(trusted: true)
+        let request = _Concurrency.Task { @MainActor in await pair.a.syncNow() }
+        await settle(); #expect(pair.a.isSyncing)
+        pair.a.setAvailable(false); await request.value
+        #expect(!pair.a.isSyncing && !pair.a.isConnected && pair.al.sent.isEmpty)
+        pair.b.setAvailable(false)
+    }
+    @Test func unpairedSyncButtonExplainsInitialApproval() async {
+        let pair = makeTransportPair(trusted: false)
+        await pair.a.syncNow()
+        #expect(pair.a.message == "先に端末をペアリングしてください。" && pair.al.sent.isEmpty)
+        pair.a.setAvailable(false); pair.b.setAvailable(false)
+    }
     @Test func discoveryAndBothApprovalsAreRequiredBeforeSendingWork() async throws {
         let pair = makeTransportPair(trusted: false)
         pair.a.beginPairing(); pair.b.beginPairing()
@@ -174,7 +202,7 @@ struct LocalCertificateDecisionTests {
         pair.a.setAvailable(false); pair.b.setAvailable(false)
     }
     @Test func lostAckRetriesSameIDAndRemainsIdempotent() async throws {
-        let pair = makeTransportPair(trusted: true, delay: .milliseconds(10))
+        let pair = makeTransportPair(trusted: true, delay: .milliseconds(100))
         pair.al.onEvent?(.found(peerB)); await settle()
         pair.bl.dropNextAck = true
         await pair.a.syncNow()

@@ -102,7 +102,12 @@ import UIKit
     func send(_ data: Data) throws {
         guard data.count <= LocalSyncConstants.maximumBytes, let session, let expectedPeer,
               session.connectedPeers == [expectedPeer] else { throw LocalSyncError.offline }
-        try session.send(data, toPeers: [expectedPeer], with: .reliable)
+        do { try session.send(data, toPeers: [expectedPeer], with: .reliable) }
+        catch {
+            let value = error as NSError
+            LocalSyncDiagnostics.log("mpc.send.failed", peer: expectedPeer.displayName, detail: "domain=\(value.domain) code=\(value.code)")
+            throw LocalSyncError.network
+        }
     }
 }
 
@@ -130,6 +135,8 @@ extension MultipeerLocalLink: MCNearbyServiceBrowserDelegate {
         }
     }
     nonisolated func browser(_ browser: MCNearbyServiceBrowser, didNotStartBrowsingForPeers error: any Error) {
+        let value = error as NSError
+        LocalSyncDiagnostics.log("mpc.browser.failed", detail: "domain=\(value.domain) code=\(value.code)")
         _Concurrency.Task { @MainActor [weak self] in self?.onEvent?(.failed(.network)) }
     }
 }
@@ -150,6 +157,8 @@ extension MultipeerLocalLink: MCNearbyServiceAdvertiserDelegate {
         }
     }
     nonisolated func advertiser(_ advertiser: MCNearbyServiceAdvertiser, didNotStartAdvertisingPeer error: any Error) {
+        let value = error as NSError
+        LocalSyncDiagnostics.log("mpc.advertiser.failed", detail: "domain=\(value.domain) code=\(value.code)")
         _Concurrency.Task { @MainActor [weak self] in self?.onEvent?(.failed(.network)) }
     }
 }

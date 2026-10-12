@@ -23,6 +23,12 @@ import CryptoKit
     @ObservationIgnored private var available = false
     @ObservationIgnored private var preferencesLoaded = false
     @ObservationIgnored private var running = false
+    @ObservationIgnored private var connecting = false
+    @ObservationIgnored private var connectionWaiter: CheckedContinuation<Void, any Error>?
+    @ObservationIgnored private var connectionWaitTimeout: _Concurrency.Task<Void, Never>?
+    @ObservationIgnored private let reconnectDelay: Duration
+    @ObservationIgnored private let connectionWaitDelay: Duration
+    @ObservationIgnored private var manualConnection = false
     @ObservationIgnored private var currentPeer: LocalPeer?
     @ObservationIgnored private var remoteHash: Data?
     @ObservationIgnored private var localHello: LocalHello?
@@ -45,8 +51,9 @@ import CryptoKit
     @ObservationIgnored private let acknowledgementDelay: Duration
 
     init(deviceID: UUID, displayName: String, link: any LocalSyncLink, store: any LocalSyncPreferenceStoring,
-         acknowledgementDelay: Duration = .seconds(8), snapshot: @escaping () throws -> [SyncRecord], apply: @escaping ([SyncRecord]) throws -> Void) {
+         acknowledgementDelay: Duration = .seconds(8), connectionWaitDelay: Duration = .seconds(20), reconnectDelay: Duration = .seconds(15), snapshot: @escaping () throws -> [SyncRecord], apply: @escaping ([SyncRecord]) throws -> Void) {
         self.deviceID = deviceID; self.displayName = displayName; self.link = link; self.store = store
+        self.reconnectDelay = reconnectDelay; self.connectionWaitDelay = connectionWaitDelay
         self.snapshot = snapshot; self.apply = apply; self.acknowledgementDelay = acknowledgementDelay
         do {
             let value = try store.load(); guard value.isValid else { throw LocalSyncError.storage }
@@ -78,6 +85,9 @@ import CryptoKit
         guard preferences.enabled, canPair else { return }
         isPairing = true; attemptedAt = []; message = nil
         restartDiscovery()
+        armPairingExpiry()
+    }
+    private func armPairingExpiry() {
         pairingExpiry?.cancel()
         pairingExpiry = _Concurrency.Task { [weak self] in
             do { try await _Concurrency.Task.sleep(for: .seconds(120)) } catch { return }
@@ -89,8 +99,8 @@ import CryptoKit
         if preferences.trustedDevice == nil { link.disconnect(); clearConnection(); restartDiscovery() }
     }
     func connect(_ peer: LocalPeer) {
-        guard running, isPairing || preferences.trustedDevice?.deviceID == peer.id, !isConnected else { return }
-        do { status = "接続中"; try link.connect(peer) } catch { fail(.network) }
+        guard running, isPairing || preferences.trustedDevice?.deviceID == peer.id, !isConnected, !connecting, currentPeer == nil else { return }
+        do { connecting = true; status = "接続中"; try link.connect(peer) } catch { fail(error as? LocalSyncError ?? .network) }
     }
     func approvePairing() {
         guard isPairing, pairingPeer != nil, pairingCode != nil, remoteHello != nil else { return }
@@ -116,29 +126,61 @@ import CryptoKit
         debounce?.cancel()
         debounce = _Concurrency.Task { [weak self] in
             do { try await _Concurrency.Task.sleep(for: .milliseconds(700)) } catch { return }
-            await self?.syncNow()
+            await self?.performSync(manual: false)
         }
     }
-    func syncNow() async {
+    func syncNow() async { await performSync(manual: true) }
+    private func performSync(manual: Bool) async {
         guard available, preferences.enabled else { return }
         startIfAvailable()
-        guard preferences.trustedDevice != nil else { if !isPairing { status = "未設定" }; return }
-        guard isConnected else {
-            autoConnect()
-            if currentPeer == nil { status = peers.isEmpty ? "相手が見つからない" : "接続待ち"; message = LocalSyncError.offline.localizedDescription }
-            return
+        guard preferences.trustedDevice != nil else {
+            if !isPairing { status = "未設定"; message = "先に端末をペアリングしてください。" }; return
         }
+        if !manual, !isConnected { autoConnect(); return }
         guard !isSyncing else { dirty = true; return }
-        isSyncing = true
-        defer { isSyncing = false }
-        repeat {
-            dirty = false
-            do { _ = try await exchange(snapshot()) }
-            catch {
-                guard available, preferences.enabled, preferences.trustedDevice != nil else { return }
-                message = (error as? LocalSyncError ?? .network).localizedDescription; status = "同期エラー"; return
+        isSyncing = true; manualConnection = manual
+        defer { isSyncing = false; manualConnection = false }
+        do {
+            if !isConnected { try await waitForConnection() }
+            repeat {
+                try _Concurrency.Task.checkCancellation()
+                dirty = false
+                LocalSyncDiagnostics.log("sync.start", peer: currentPeer?.name)
+                _ = try await exchange(snapshot())
+                LocalSyncDiagnostics.log("sync.success", peer: currentPeer?.name)
+            } while dirty && available && preferences.enabled && isConnected
+        } catch {
+            guard available, preferences.enabled, preferences.trustedDevice != nil else { return }
+            message = (error as? LocalSyncError ?? .network).localizedDescription
+            status = error as? LocalSyncError == .offline ? "オフライン" : "同期エラー"
+        }
+    }
+    private func waitForConnection() async throws {
+        guard running else { throw LocalSyncError.network }
+        try await withTaskCancellationHandler {
+            try await withCheckedThrowingContinuation { promise in
+                connectionWaiter = promise
+                message = nil; status = connecting ? "接続中" : "相手を探索中"
+                connectionWaitTimeout = _Concurrency.Task { [weak self] in
+                    do { try await _Concurrency.Task.sleep(for: self?.connectionWaitDelay ?? .seconds(20)) } catch { return }
+                    guard let self, self.connectionWaiter != nil else { return }
+                    LocalSyncDiagnostics.log("sync.discoveryOrReady.timeout")
+                    self.finishConnectionWait(.failure(LocalSyncError.offline)); self.link.disconnect(); self.clearConnection()
+                }
+                autoConnect()
+                if isConnected { finishConnectionWait(.success(())) }
             }
-        } while dirty && available && preferences.enabled && isConnected && !_Concurrency.Task.isCancelled
+        } onCancel: { [weak self] in
+            _Concurrency.Task { @MainActor [weak self] in
+                guard let self, self.connectionWaiter != nil else { return }
+                self.finishConnectionWait(.failure(CancellationError())); self.link.disconnect(); self.clearConnection()
+            }
+        }
+    }
+    private func finishConnectionWait(_ result: Result<Void, any Error>) {
+        connectionWaitTimeout?.cancel(); connectionWaitTimeout = nil
+        guard let promise = connectionWaiter else { return }
+        connectionWaiter = nil; promise.resume(with: result)
     }
     func exchange(_ records: [SyncRecord]) async throws -> [SyncRecord] {
         guard authorized, remoteReady else { throw LocalSyncError.untrusted }
@@ -161,7 +203,7 @@ import CryptoKit
                 }
             }
         } onCancel: { [weak self] in
-            _Concurrency.Task { @MainActor in if self?.pendingID == id { self?.finishRequest(.failure(CancellationError())) } }
+            _Concurrency.Task { @MainActor [weak self] in if self?.pendingID == id { self?.finishRequest(.failure(CancellationError())) } }
         }
     }
     private var authorized: Bool {
@@ -184,16 +226,19 @@ import CryptoKit
     }
     private func clearConnection() {
         finishRequest(.failure(LocalSyncError.offline))
+        finishConnectionWait(.failure(LocalSyncError.offline)); connecting = false
         currentPeer = nil; remoteHash = nil; localHello = nil; remoteHello = nil
         approved = false; remoteApproved = false; remoteReady = false
         pairingPeer = nil; pairingCode = nil; isConnected = false
         handshakeTimeout?.cancel(); received = [:]; receivedOrder = []
     }
     private func autoConnect() {
-        guard running, currentPeer == nil, let trusted = preferences.trustedDevice,
-              deviceID.uuidString < trusted.deviceID.uuidString, let peer = peers.first(where: { $0.id == trusted.deviceID }) else { return }
+        guard running, !connecting, currentPeer == nil, let trusted = preferences.trustedDevice,
+              (manualConnection || deviceID.uuidString < trusted.deviceID.uuidString), let peer = peers.first(where: { $0.id == trusted.deviceID }) else { return }
         attemptedAt.removeAll { Date().timeIntervalSince($0) >= 60 }
-        guard attemptedAt.count < 3, attemptedAt.last.map({ Date().timeIntervalSince($0) >= 10 }) ?? true else { return }
+        guard manualConnection || (attemptedAt.count < 3 && (attemptedAt.last.map({ Date().timeIntervalSince($0) >= 10 }) ?? true)) else {
+            scheduleReconnect(restart: false); return
+        }
         attemptedAt.append(Date()); connect(peer)
     }
     private func receive(_ event: LocalLinkEvent) {
@@ -203,7 +248,7 @@ import CryptoKit
             guard peer.id != deviceID, isPairing || preferences.trustedDevice?.deviceID == peer.id, peers.count < 64 || peers.contains(where: { $0.id == peer.id }) else { return }
             peers.removeAll { $0.id == peer.id }; peers.append(peer); peers.sort { $0.name < $1.name }; autoConnect()
         case .lost(let id): peers.removeAll { $0.id == id }
-        case .connecting: status = "接続中"
+        case .connecting: connecting = true; status = "接続中"
         case .connected(let peer, let hash):
             guard hash.count == 32, peer.id != deviceID, currentPeer == nil,
                   isPairing || preferences.trustedDevice.map({ $0.deviceID == peer.id && $0.certificateHash == hash }) == true else { fail(.untrusted); return }
@@ -219,15 +264,22 @@ import CryptoKit
             catch { fail(error as? LocalSyncError ?? .invalidData) }
         case .disconnected:
             clearConnection(); if message == nil { status = "オフライン" }
-            retryTimer?.cancel()
-            retryTimer = _Concurrency.Task { [weak self] in
-                do { try await _Concurrency.Task.sleep(for: .seconds(15)) } catch { return }
-                self?.autoConnect()
-            }
+            scheduleReconnect(restart: false)
         case .failed(let error):
             link.stop(); running = false; fail(error)
+            if error == .network || error == .timeout || error == .offline { scheduleReconnect(restart: true) }
         case .incompatiblePeer:
             if currentPeer == nil { status = "バージョン不一致"; message = LocalSyncError.version.localizedDescription }
+        }
+    }
+    private func scheduleReconnect(restart: Bool) {
+        guard available, preferences.enabled, preferences.trustedDevice != nil else { return }
+        retryTimer?.cancel()
+        retryTimer = _Concurrency.Task { [weak self] in
+            do { try await _Concurrency.Task.sleep(for: self?.reconnectDelay ?? .seconds(15)) } catch { return }
+            guard let self, self.available, self.preferences.enabled, !self.isConnected else { return }
+            if restart { self.peers = []; self.startIfAvailable() }
+            self.autoConnect()
         }
     }
     private func handle(_ envelope: LocalSyncEnvelope, raw: Data) throws {
@@ -244,6 +296,7 @@ import CryptoKit
                 pairingPeer = currentPeer
                 pairingCode = LocalSyncEnvelope.pairingCode(local: localHello, localHash: link.certificateHash, remote: hello, remoteHash: remoteHash)
                 status = "両端末で確認待ち"
+                armPairingExpiry()
                 LocalSyncDiagnostics.log("pairing.codeDisplayed", peer: currentPeer?.name, detail: "workDataAllowed=false")
             }
         case .approve:
@@ -251,7 +304,7 @@ import CryptoKit
             remoteApproved = true; try finishPairingIfReady()
         case .ready:
             guard authorized else { throw LocalSyncError.untrusted }
-            remoteReady = true; isConnected = true; handshakeTimeout?.cancel(); status = "接続済み"; message = nil
+            remoteReady = true; isConnected = true; connecting = false; finishConnectionWait(.success(())); handshakeTimeout?.cancel(); status = "接続済み"; message = nil
             localRecordsDidChange()
         case .records:
             guard authorized, remoteReady, let records = envelope.records else { throw LocalSyncError.untrusted }
@@ -305,6 +358,7 @@ import CryptoKit
         continuation = nil; pendingID = nil; timeout?.cancel(); timeout = nil; promise.resume(with: result)
     }
     private func fail(_ error: LocalSyncError) {
+        finishConnectionWait(.failure(error))
         message = error.localizedDescription; status = error == .version ? "バージョン不一致" : "同期エラー"
         clearConnection(); link.disconnect()
     }

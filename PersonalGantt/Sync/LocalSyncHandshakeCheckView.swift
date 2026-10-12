@@ -15,7 +15,8 @@ struct LocalSyncHandshakeCheckView: View {
         let key = "personalGantt.handshakeCheck.deviceID" + suffix
         let id = UserDefaults.standard.string(forKey: key).flatMap(UUID.init(uuidString:)) ?? UUID()
         UserDefaults.standard.set(id.uuidString, forKey: key)
-        let link = MultipeerLocalLink(deviceID: id, name: name,
+        let link: any LocalSyncLink = ProcessInfo.processInfo.arguments.contains("--local-sync-network-check")
+            ? NetworkLocalLink(deviceID: id, name: name) : MultipeerLocalLink(deviceID: id, name: name,
             identityAlgorithm: ProcessInfo.processInfo.arguments.contains("--local-sync-legacy-ec-check") ? .legacyEC : nil)
         return LocalSyncTransport(deviceID: id, displayName: name, link: link,
             store: HandshakeCheckPreferences(), snapshot: { throw LocalSyncError.untrusted },
