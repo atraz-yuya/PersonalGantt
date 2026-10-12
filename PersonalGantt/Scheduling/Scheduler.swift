@@ -124,7 +124,7 @@ nonisolated struct Scheduler: Sendable {
     }
 
     /// Treat overlapping/adjacent input slots as a union so capacity isn't counted twice.
-    private func normalizedSlots(_ input: [AvailableSlot]) -> [AvailableSlot] {
+    func normalizedSlots(_ input: [AvailableSlot]) -> [AvailableSlot] {
         let ordered = input.filter { $0.start < $0.end }.sorted {
             if $0.start != $1.start { return $0.start < $1.start }
             return $0.end < $1.end
