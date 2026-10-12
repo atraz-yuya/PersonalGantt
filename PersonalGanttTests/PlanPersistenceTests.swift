@@ -208,7 +208,7 @@ struct PlanPersistenceTests {
 
     private func makeModel(store: MemoryPlanStore, provider: PersistenceCalendarProvider? = nil,
                            now: Date = ReminderFixtures.date(0), scope: String = "scope", selection: PersistenceCalendarSelection? = nil) -> ScheduleViewModel {
-        ScheduleViewModel(tasks: [], calendarProvider: provider ?? PersistenceCalendarProvider(), calendar: ReminderFixtures.calendar, clock: { now },
+        ScheduleViewModel(tasks: [], calendarProvider: provider ?? PersistenceCalendarProvider(), activitySettings: .legacyFixture, calendar: ReminderFixtures.calendar, clock: { now },
                           selectionStore: selection, selectionScope: scope, planStore: store)
     }
     private func date(_ hour: Int, _ minute: Int = 0, day: Int = 7) -> Date { ReminderFixtures.date(hour, minute, day: day) }

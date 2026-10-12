@@ -46,9 +46,9 @@ nonisolated struct AvailabilityService: Sendable {
             guard let nextDay = calendar.date(byAdding: .day, value: 1, to: day) else {
                 throw AvailabilityError.invalidDateRange
             }
-            // Weekdays 1 and 7 mean Sunday and Saturday for every Calendar firstWeekday setting.
-            let weekday = calendar.component(.weekday, from: day)
-            let window = (weekday == 1 || weekday == 7) ? settings.weekend : settings.weekday
+            guard let window = settings.window(on: day, calendar: calendar) else {
+                day = nextDay; continue
+            }
             let start = try localTime(window.startMinute, on: day, nextDay: nextDay, calendar: calendar)
             let end = try localTime(window.endMinute, on: day, nextDay: nextDay, calendar: calendar)
             let clippedStart = max(start, referenceDate, range.start)

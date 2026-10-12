@@ -194,7 +194,7 @@ struct BackupTests {
         target.metadata.state.metadata[record.id] = ReminderTaskMetadata(taskID: newID, externalIdentifier: "stable", listID: "list", estimatedMinutes: 60)
         target.metadata.state.transferAliases = [task.id: newID]
         let provider = FakeReminderProvider(); provider.records = [record]
-        let reopened = ScheduleViewModel(tasks: [], calendarProvider: BackupCalendarProvider(), calendar: ReminderFixtures.calendar,
+        let reopened = ScheduleViewModel(tasks: [], calendarProvider: BackupCalendarProvider(), activitySettings: .legacyFixture, calendar: ReminderFixtures.calendar,
             clock: { self.date(8, 30) }, planStore: target.plan)
         reopened.attachReminders(provider: provider, storage: target.metadata)
         await reopened.reminders?.refresh()
@@ -225,7 +225,7 @@ struct BackupTests {
 
     private func makeModel(now: Date = ReminderFixtures.date(0)) -> (model: ScheduleViewModel, plan: BackupPlanStore, metadata: MemoryReminderMetadata, journal: BackupMemoryJournal) {
         let plan = BackupPlanStore(); let metadata = MemoryReminderMetadata(); let journal = BackupMemoryJournal()
-        let model = ScheduleViewModel(tasks: [], calendarProvider: BackupCalendarProvider(), calendar: ReminderFixtures.calendar,
+        let model = ScheduleViewModel(tasks: [], calendarProvider: BackupCalendarProvider(), activitySettings: .legacyFixture, calendar: ReminderFixtures.calendar,
             clock: { now }, planStore: plan)
         model.configureBackup(reminderStore: metadata, journal: journal, deviceID: UUID())
         return (model, plan, metadata, journal)

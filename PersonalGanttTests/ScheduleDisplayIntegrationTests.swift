@@ -11,7 +11,7 @@ struct ScheduleDisplayIntegrationTests {
         let clock = DisplayClock(ReminderFixtures.date(0))
         let task = PersonalGantt.Task(title: "合成作業", estimatedMinutes: 180, deadline: ReminderFixtures.date(23))
         let model = ScheduleViewModel(tasks: [task], calendarProvider: GoogleCalendarService(tokens: MockGoogleTokens(), transport: http,
-            calendar: ReminderFixtures.calendar), calendar: ReminderFixtures.calendar, clock: { clock.date })
+            calendar: ReminderFixtures.calendar), activitySettings: .legacyFixture, calendar: ReminderFixtures.calendar, clock: { clock.date })
         #expect(await model.applyCalendarSelection(["study"]))
         let before = model.result
         let first = try #require(model.daySchedule(on: ReminderFixtures.date(0)))

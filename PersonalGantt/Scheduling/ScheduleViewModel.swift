@@ -60,7 +60,9 @@ final class ScheduleViewModel {
     @ObservationIgnored private var automaticRefreshPending = false
     @ObservationIgnored private var automaticRefreshWaiters: [CheckedContinuation<Void, Never>] = []
     @ObservationIgnored private var hasConfirmedPlan = false
-    @ObservationIgnored private var activitySettings = ActivitySettings.default
+    @ObservationIgnored private var initialActivitySettings = ActivitySettings.default
+    @ObservationIgnored private var lastAvailabilitySettings: ActivitySettings?
+    var activitySettings: ActivitySettings { schedulingSettings.activitySettings ?? initialActivitySettings }
     @ObservationIgnored private var calendar = Calendar.current
     @ObservationIgnored private var clock: () -> Date = { Date() }
     @ObservationIgnored private var archivedTitles: [UUID: String] = [:]
@@ -135,7 +137,7 @@ final class ScheduleViewModel {
         self.init(tasks: tasks, availableSlots: [])
         self.calendarProvider = calendarProvider
         self.writebackProvider = (calendarProvider as? GoogleCalendarService)?.makeWritebackService()
-        self.activitySettings = activitySettings
+        self.initialActivitySettings = activitySettings
         self.calendar = calendar
         self.clock = clock
         self.selectionStore = selectionStore
@@ -177,6 +179,7 @@ final class ScheduleViewModel {
             if sameSource {
                 result = SchedulingResult(blocks: snapshot.blocks, unscheduledTaskIDs: snapshot.unscheduledTaskIDs)
                 availableSlots = snapshot.slots
+                lastAvailabilitySettings = activitySettings
                 calendars = snapshot.calendars
                 selectedCalendarIDs = snapshot.selectedCalendarIDs
                 fixedEvents = snapshot.fixedEvents
@@ -455,6 +458,12 @@ final class ScheduleViewModel {
         if next.plan.calendarCoverage != nil || !next.plan.selectedCalendarIDs.isEmpty {
             next.plan.slots = safeRange.map { clippedSlots(next.plan.slots, to: $0, now: clock()) } ?? []
         } else { next.plan.slots = clippedSlots(next.plan.slots, to: restoredHorizon.interval, now: clock()) }
+        if let hours = next.plan.schedulingSettings?.activitySettings {
+            let range = safeRange ?? (next.plan.calendarCoverage == nil && next.plan.selectedCalendarIDs.isEmpty ? restoredHorizon.interval : nil)
+            next.plan.slots = try range.map {
+                try AvailabilityService().availableSlots(fixedEvents: next.plan.fixedEvents, in: $0, settings: hours, referenceDate: clock(), calendar: calendar)
+            } ?? []
+        }
         let occurrenceTasks = RoutinePlanner().tasks(for: next.plan.routines ?? [], in: restoredHorizon.interval, calendar: calendar)
         for old in next.plan.tasks where old.routineOccurrence != nil {
             next.plan.archivedTitles[old.id] = old.title
@@ -522,12 +531,14 @@ final class ScheduleViewModel {
         do {
             let now = clock()
             let horizon = try resolveHorizon(now: now)
-            let periodChanged = planningInterval != horizon.interval
+            let rebuild = planningInterval != horizon.interval || lastAvailabilitySettings != activitySettings
             planningHorizon = horizon
             planningInterval = horizon.interval
             if calendarProvider != nil {
-                if periodChanged { try rebuildPlanningAvailability(now: now) }
-                else {
+                if rebuild {
+                    // Changed hours and sync settings use cached fixed events immediately.
+                    try rebuildPlanningAvailability(now: now)
+                } else {
                     let safeRange = calendarCoverage?.intersection(with: horizon.interval)
                         ?? (calendarCoverage == nil && selectedCalendarIDs.isEmpty ? horizon.interval : nil)
                     availableSlots = safeRange.map { clippedSlots(availableSlots, to: $0, now: now) } ?? []
@@ -737,6 +748,7 @@ final class ScheduleViewModel {
             selectedCalendarIDs = effectiveIDs
             fixedEvents = events
             availableSlots = slots
+            lastAvailabilitySettings = activitySettings
             planningInterval = range
             planningHorizon = horizon
             calendarCoverage = CalendarCoverage(start: range.start, end: range.end)
@@ -1028,6 +1040,27 @@ final class ScheduleViewModel {
     }
 
 
+    func setActivitySettings(_ settings: ActivitySettings) throws {
+        guard !isBackupRecoveryRequired else { throw BackupError.recoveryRequired }
+        guard settings.isValid else { throw AvailabilityError.invalidSettings }
+        schedulingSettings.activitySettings = settings
+        recalculate()
+    }
+
+    func setActivityWindow(_ window: ActivityWindow?, on day: Date) throws {
+        guard day.timeIntervalSinceReferenceDate.isFinite, day >= .distantPast, day <= .distantFuture else { throw AvailabilityError.invalidDateRange }
+        var settings = activitySettings
+        settings.dayOverrides[ActivitySettings.dayKey(day, calendar: calendar)] = ActivityDayOverride(window: window)
+        try setActivitySettings(settings)
+    }
+
+    func clearActivityOverride(on day: Date) throws {
+        guard day.timeIntervalSinceReferenceDate.isFinite, day >= .distantPast, day <= .distantFuture else { throw AvailabilityError.invalidDateRange }
+        var settings = activitySettings
+        settings.dayOverrides.removeValue(forKey: ActivitySettings.dayKey(day, calendar: calendar))
+        try setActivitySettings(settings)
+    }
+
     func setLocalOptimization(_ enabled: Bool) {
         guard !isBackupRecoveryRequired else { return }
         schedulingSettings.optimizeLocally = enabled; recalculate()
@@ -1124,6 +1157,7 @@ final class ScheduleViewModel {
         }
         availableSlots = try AvailabilityService().availableSlots(fixedEvents: fixedEvents, in: range,
             settings: activitySettings, referenceDate: now, calendar: calendar)
+        lastAvailabilitySettings = activitySettings
     }
 
     var coverageMessage: String? {

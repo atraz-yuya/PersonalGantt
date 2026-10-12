@@ -116,7 +116,7 @@ struct ScheduleRefreshTests {
         let tasks = [
             task(1, 30, date(23)), task(2, 60, date(23)), task(3, 60, date(23))
         ]
-        let model = ScheduleViewModel(tasks: tasks, calendarProvider: provider, calendar: utc, clock: { clock.now })
+        let model = ScheduleViewModel(tasks: tasks, calendarProvider: provider, activitySettings: .legacyFixture, calendar: utc, clock: { clock.now })
         await model.applicationDidBecomeActive()
         #expect(await model.applyCalendarSelection(["work"]))
         let past = model.result.blocks[0]
@@ -329,14 +329,14 @@ struct ScheduleRefreshTests {
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = try #require(TimeZone(identifier: "America/Los_Angeles"))
         let now = try #require(calendar.date(from: DateComponents(year: 2026, month: 3, day: 8)))
-        let model = ScheduleViewModel(tasks: [], calendarProvider: RefreshCalendarProvider(), calendar: calendar, clock: { now })
+        let model = ScheduleViewModel(tasks: [], calendarProvider: RefreshCalendarProvider(), activitySettings: .legacyFixture, calendar: calendar, clock: { now })
         #expect(model.nextPlanningDay.timeIntervalSince(now) == 23 * 3600)
     }
 
     private func model(_ provider: RefreshCalendarProvider, _ clock: RefreshClock,
                        _ store: MemoryCalendarSelection? = nil) -> ScheduleViewModel {
         ScheduleViewModel(tasks: [task(1, 120, date(23, day: 9))], calendarProvider: provider,
-                          calendar: utc, clock: { clock.now }, selectionStore: store, selectionScope: "client")
+                          activitySettings: .legacyFixture, calendar: utc, clock: { clock.now }, selectionStore: store, selectionScope: "client")
     }
 
     private var utc: Calendar {

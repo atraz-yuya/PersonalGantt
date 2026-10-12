@@ -6,7 +6,7 @@ import Testing
     @Test func refreshUsesExistingSessionAndReplansOnlyFuture() async throws {
         let provider = BackgroundProvider(); let clock = BackgroundClock()
         let task = PersonalGantt.Task(title: "合成", estimatedMinutes: 180, deadline: ReminderFixtures.date(23))
-        let model = ScheduleViewModel(tasks: [task], calendarProvider: provider, calendar: ReminderFixtures.calendar, clock: { clock.now })
+        let model = ScheduleViewModel(tasks: [task], calendarProvider: provider, activitySettings: .legacyFixture, calendar: ReminderFixtures.calendar, clock: { clock.now })
         #expect(await model.applyCalendarSelection(["work"]))
         let begun = try #require(model.result.blocks.first)
         clock.now = ReminderFixtures.date(9)
@@ -20,7 +20,7 @@ import Testing
     }
     @Test func signedOutBackgroundNeverPrompts() async {
         let provider = BackgroundProvider(); provider.authorization = .signedOut
-        let model = ScheduleViewModel(tasks: [], calendarProvider: provider)
+        let model = ScheduleViewModel(tasks: [], calendarProvider: provider, activitySettings: .legacyFixture)
         await model.performBackgroundRefresh()
         #expect(provider.prompts == 0 && provider.reads == 0)
     }

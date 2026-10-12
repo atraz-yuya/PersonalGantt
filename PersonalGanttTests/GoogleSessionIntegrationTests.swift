@@ -104,7 +104,7 @@ struct GoogleSessionIntegrationTests {
                                       transport: http, authenticator: MockGoogleBrowser(), clock: { date(0) })
         var now = date(0)
         let task = PersonalGantt.Task(title: "合成作業", estimatedMinutes: 60, deadline: date(23))
-        let model = ScheduleViewModel(tasks: [task], calendarProvider: GoogleCalendarService(tokens: tokens, transport: http, calendar: utc),
+        let model = ScheduleViewModel(tasks: [task], calendarProvider: GoogleCalendarService(tokens: tokens, transport: http, calendar: utc), activitySettings: .legacyFixture,
                                       calendar: utc, clock: { now }, selectionStore: selections, selectionScope: configuration.clientID)
         http.responses = [(200, calendarList), (200, #"{"items":[]}"#)]
         await model.loadCalendarState()
@@ -123,7 +123,7 @@ struct GoogleSessionIntegrationTests {
                        _ selections: UserDefaultsCalendarSelectionStore) -> ScheduleViewModel {
         let task = PersonalGantt.Task(id: UUID(uuidString: "00000000-0000-0000-0000-000000000001")!,
                                      title: "合成作業", estimatedMinutes: 120, deadline: date(23))
-        return ScheduleViewModel(tasks: [task], calendarProvider: GoogleCalendarService(tokens: tokens, transport: http, calendar: utc),
+        return ScheduleViewModel(tasks: [task], calendarProvider: GoogleCalendarService(tokens: tokens, transport: http, calendar: utc), activitySettings: .legacyFixture,
                                  calendar: utc, clock: { date(0) }, selectionStore: selections, selectionScope: configuration.clientID)
     }
     private func credential(expiresAt: Date) -> GoogleCredentials {

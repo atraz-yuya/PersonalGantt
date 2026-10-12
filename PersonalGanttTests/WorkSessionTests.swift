@@ -50,7 +50,7 @@ import Testing
         #expect(target.remainingMinutes(for: work) == 30)
     }
     @Test func timerRequiresAtLeastOneMinuteAndCannotStartTwoTasks() throws {
-        let clock = SessionClock(); let value = ScheduleViewModel(tasks: [], calendarProvider: SessionProvider(), calendar: ReminderFixtures.calendar, clock: { clock.now })
+        let clock = SessionClock(); let value = ScheduleViewModel(tasks: [], calendarProvider: SessionProvider(), activitySettings: .legacyFixture, calendar: ReminderFixtures.calendar, clock: { clock.now })
         value.attachPlanStore(WorkSessionStore())
         let work = try value.addTask(TaskDraft(title: "Synthetic", deadline: ReminderFixtures.date(23)))
         try value.startWork(taskID: work.id)
@@ -60,7 +60,7 @@ import Testing
         #expect(value.workSessions.first?.actualMinutes == 30 && value.activeWorkSession == nil)
     }
     private func model(_ store: WorkSessionStore? = nil) -> ScheduleViewModel {
-        let value = ScheduleViewModel(tasks: [], calendarProvider: SessionProvider(), calendar: ReminderFixtures.calendar, clock: { ReminderFixtures.date(0) })
+        let value = ScheduleViewModel(tasks: [], calendarProvider: SessionProvider(), activitySettings: .legacyFixture, calendar: ReminderFixtures.calendar, clock: { ReminderFixtures.date(0) })
         value.attachPlanStore(store ?? WorkSessionStore()); return value
     }
 }

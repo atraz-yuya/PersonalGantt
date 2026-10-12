@@ -1,14 +1,15 @@
 import Foundation
 
 nonisolated enum AppDestination: String, CaseIterable, Identifiable {
-    case today, day, tasks, inputQueue, settings
+    case today, day, tasks, add, inputQueue, settings
     var id: Self { self }
     var title: String {
         switch self {
         case .today: "今日"
         case .day: "日別"
         case .tasks: "タスク"
-        case .inputQueue: "入力待ち"
+        case .add: "追加"
+        case .inputQueue: "待ち"
         case .settings: "設定"
         }
     }
@@ -17,11 +18,13 @@ nonisolated enum AppDestination: String, CaseIterable, Identifiable {
         case .today: "sun.max"
         case .day: "calendar"
         case .tasks: "checklist"
+        case .add: "plus.circle"
         case .inputQueue: "clock.badge.questionmark"
         case .settings: "gearshape"
         }
     }
-    var isPrimaryTab: Bool { self == .today || self == .day || self == .tasks }
+    static let primaryTabs: [Self] = [.today, .day, .tasks, .add, .inputQueue]
+    var isPrimaryTab: Bool { Self.primaryTabs.contains(self) }
 }
 
 nonisolated enum WorkspaceCommand {

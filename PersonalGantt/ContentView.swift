@@ -119,6 +119,9 @@ struct ContentView: View {
                     selectedScreen(route)
                         .toolbar { ToolbarItem(placement: .cancellationAction) { Button("閉じる") { auxiliaryDestination = nil } } }
                 }.id(route)
+                #if os(macOS)
+                .frame(minWidth: 600, minHeight: 560)
+                #endif
             }
             .sheet(item: $editor) { TaskEditingSheet(model: model, task: $0.task) }
             .sheet(item: $detail, onDismiss: {
@@ -162,7 +165,7 @@ struct ContentView: View {
     @ViewBuilder private var workspace: some View {
         if usesCompactLayout {
             TabView(selection: $primaryTab) {
-                ForEach([AppDestination.today, .day, .tasks]) { route in
+                ForEach(AppDestination.primaryTabs) { route in
                     NavigationStack {
                         selectedScreen(route)
                             .navigationTitle(route.title)
@@ -181,9 +184,27 @@ struct ContentView: View {
                 AppSidebarView(model: model, selection: destination, onCommand: perform)
                     .navigationSplitViewColumnWidth(min: 210, ideal: 245, max: 300)
             } detail: {
-                NavigationStack {
-                    selectedScreen(destination).navigationTitle(destination.title)
-                }.id(destination)
+                VStack(spacing: 0) {
+                    NavigationStack {
+                        selectedScreen(primaryTab).navigationTitle(primaryTab.title)
+                    }.id(primaryTab)
+                    Divider()
+                    HStack(spacing: 0) {
+                        ForEach(AppDestination.primaryTabs) { route in
+                            Button { primaryTab = route; destination = route } label: {
+                                VStack(spacing: 4) {
+                                    Label(route.title, systemImage: route.symbol).labelStyle(.iconOnly)
+                                    Text(route.title).font(.caption)
+                                }.frame(maxWidth: .infinity).padding(.vertical, 10)
+                                    .foregroundStyle(primaryTab == route ? Color.accentColor : Color.secondary)
+                                    .background(primaryTab == route ? Color.accentColor.opacity(0.1) : Color.clear)
+                                    .contentShape(Rectangle())
+                            }.buttonStyle(.plain).accessibilityLabel(route.title)
+                                .accessibilityAddTraits(primaryTab == route ? .isSelected : [])
+                                .accessibilityIdentifier("tab-" + route.rawValue)
+                        }
+                    }.accessibilityIdentifier("bottom-navigation")
+                }
             }
         }
     }
@@ -196,6 +217,7 @@ struct ContentView: View {
         case .tasks:
             TaskListView(model: model, onDetail: showDetail, onEdit: { editor = TaskEditorRoute(task: $0) },
                 onDelete: { taskToDelete = $0 }, onInputQueue: { perform(.show(.inputQueue)) })
+        case .add: AddView(model: model, onAddTask: { perform(.addTask) })
         case .inputQueue: InputQueueView(model: model, onSettings: { perform(.show(.settings)) })
         case .settings: AppSettingsView(model: model)
         }
@@ -205,8 +227,7 @@ struct ContentView: View {
         switch command {
         case .show(let route):
             if route.isPrimaryTab { primaryTab = route; destination = route; auxiliaryDestination = nil }
-            else if usesCompactLayout { auxiliaryDestination = route }
-            else { destination = route }
+            else { auxiliaryDestination = route }
         case .addTask: editor = TaskEditorRoute(task: nil)
         case .refreshCalendar: _Concurrency.Task { await model.refreshCalendars() }
         case .recalculate: model.recalculate()

@@ -6,14 +6,7 @@ struct AppSidebarView: View {
     let onCommand: (WorkspaceCommand) -> Void
     var body: some View {
         List {
-            Section("画面") {
-                ForEach([AppDestination.today, .day, .tasks]) { destination in
-                    destinationRow(destination)
-                }
-            }
             Section("日常操作") {
-                Button { onCommand(.addTask) } label: { row("タスクを追加", symbol: "plus") }
-                    .disabled(model.isBackupRecoveryRequired).accessibilityIdentifier("add-task")
                 destinationRow(.inputQueue)
                 Button { onCommand(.refreshCalendar) } label: { row("カレンダーを更新", symbol: "arrow.triangle.2.circlepath") }
                     .disabled(model.isLoadingCalendars || model.isBackupRecoveryRequired).accessibilityIdentifier("refresh-calendar")

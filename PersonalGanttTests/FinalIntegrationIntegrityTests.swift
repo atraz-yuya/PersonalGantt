@@ -104,7 +104,7 @@ import Testing
     }
 
     private func model(_ store: IntegrationCheckpoint? = nil) -> ScheduleViewModel {
-        let value = ScheduleViewModel(tasks: [], calendarProvider: IntegrationCalendar(), calendar: ReminderFixtures.calendar,
+        let value = ScheduleViewModel(tasks: [], calendarProvider: IntegrationCalendar(), activitySettings: .legacyFixture, calendar: ReminderFixtures.calendar,
             clock: { ReminderFixtures.date(0) })
         value.attachPlanStore(store ?? IntegrationCheckpoint()); return value
     }

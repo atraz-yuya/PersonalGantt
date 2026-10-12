@@ -14,7 +14,7 @@ nonisolated enum SyncPayloadValidator {
         case .routine: allowed = ["id","title","estimatedMinutesPerDay","startDate","endDate","recurrence","completedOccurrenceIDs","skippedOccurrenceIDs"]
         case .workload: allowed = ["maxScheduledMinutesPerDay"]
         case .workSession: allowed = ["id","taskID","taskTitle","start","end","actualMinutes","reminderExternalIdentifier","reminderOccurrenceKey"]
-        case .schedulingSettings: allowed = ["distributionMode","optimizeLocally","maxContinuousMinutes","minimumBreakMinutes","weights"]
+        case .schedulingSettings: allowed = ["distributionMode","optimizeLocally","maxContinuousMinutes","minimumBreakMinutes","weights","activitySettings"]
         }
         guard Set(dictionary.keys).isSubset(of: allowed) else { throw SyncError.invalidData }
         switch record.kind {

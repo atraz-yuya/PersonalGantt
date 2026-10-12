@@ -139,7 +139,7 @@ struct ReminderScheduleIntegrationTests {
 
     private func makeModel(_ http: MockGoogleHTTP, clock: @escaping () -> Date = { ReminderFixtures.date(0) }) -> ScheduleViewModel {
         ScheduleViewModel(tasks: [], calendarProvider: GoogleCalendarService(tokens: MockGoogleTokens(), transport: http,
-            calendar: ReminderFixtures.calendar), calendar: ReminderFixtures.calendar, clock: clock)
+            calendar: ReminderFixtures.calendar), activitySettings: .legacyFixture, calendar: ReminderFixtures.calendar, clock: clock)
     }
     private var calendars: String { #"{"items":[{"id":"study","summary":"合成Calendar","accessRole":"reader"}]}"# }
     private var events: String {

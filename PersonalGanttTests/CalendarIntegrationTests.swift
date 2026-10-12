@@ -19,7 +19,7 @@ struct CalendarIntegrationTests {
         #expect(fixed.end == date(10))
         #expect(!fixed.isAllDay)
         #expect(LegacyEventKitCalendarFixture.fixedEvent(from: event, calendarID: "work")?.id == fixed.id)
-        let slots = try AvailabilityService().availableSlots(fixedEvents: [fixed], referenceDate: date(0), calendar: utc)
+        let slots = try AvailabilityService().availableSlots(fixedEvents: [fixed], settings: .legacyFixture, referenceDate: date(0), calendar: utc)
         let first = task(1, minutes: 90, deadline: date(12))
         let second = task(2, minutes: 120, deadline: date(15))
         let result = Scheduler().schedule(tasks: [second, first], availableSlots: slots)
@@ -50,7 +50,7 @@ struct CalendarIntegrationTests {
         event.isAllDay = true
         let first = try #require(LegacyEventKitCalendarFixture.fixedEvent(from: event, calendarID: "work"))
         #expect(first.isAllDay)
-        let slots = try AvailabilityService().availableSlots(fixedEvents: [first], referenceDate: localDate(0, day: 6), calendar: localCalendar)
+        let slots = try AvailabilityService().availableSlots(fixedEvents: [first], settings: .legacyFixture, referenceDate: localDate(0, day: 6), calendar: localCalendar)
         #expect(try slots.first?.start == localDate(8, day: 7))
         #expect(try AvailabilityService().occupiedIntervals([first], calendar: localCalendar) == [DateInterval(start: localDate(0, day: 6), end: localDate(0, day: 7))])
         event.isAllDay = false
@@ -208,7 +208,7 @@ struct CalendarIntegrationTests {
         let clock = TestClock(date: date(0))
         let first = task(1, minutes: 120, deadline: date(22))
         let second = task(2, minutes: 60, deadline: date(23))
-        let model = ScheduleViewModel(tasks: [first, second], calendarProvider: provider, calendar: utc, clock: { clock.date })
+        let model = ScheduleViewModel(tasks: [first, second], calendarProvider: provider, activitySettings: .legacyFixture, calendar: utc, clock: { clock.date })
         #expect(await model.applyCalendarSelection(["work"]))
         let current = model.result.blocks[0]
         clock.date = date(9)
@@ -238,7 +238,7 @@ struct CalendarIntegrationTests {
 
     private func makeModel(_ provider: FakeCalendarProvider) -> ScheduleViewModel {
         let now = date(0)
-        return ScheduleViewModel(tasks: [task(1, minutes: 120, deadline: date(23))], calendarProvider: provider, calendar: utc, clock: { now })
+        return ScheduleViewModel(tasks: [task(1, minutes: 120, deadline: date(23))], calendarProvider: provider, activitySettings: .legacyFixture, calendar: utc, clock: { now })
     }
 
     private var utc: Calendar {
