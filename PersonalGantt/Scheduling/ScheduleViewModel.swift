@@ -8,6 +8,11 @@ final class ScheduleViewModel {
     static let shared = ScheduleViewModel()
 
     private(set) var tasks: [Task]
+    private(set) var writebackState = WritebackState()
+    private(set) var writebackMessage: String?
+    private(set) var isPublishing = false
+    @ObservationIgnored private var writebackProvider: (any CalendarWritebackProviding)?
+    @ObservationIgnored private var writebackPending = false
     private(set) var schedulingSettings = SchedulingSettings.default
     private(set) var workloadSettings = WorkloadSettings.unlimited
     private(set) var routines: [Routine] = []
@@ -127,6 +132,7 @@ final class ScheduleViewModel {
     ) {
         self.init(tasks: tasks, availableSlots: [])
         self.calendarProvider = calendarProvider
+        self.writebackProvider = (calendarProvider as? GoogleCalendarService)?.makeWritebackService()
         self.activitySettings = activitySettings
         self.calendar = calendar
         self.clock = clock
@@ -154,6 +160,7 @@ final class ScheduleViewModel {
             workloadSettings = snapshot.workloadSettings ?? .unlimited
             routines = snapshot.routines ?? []
             syncState = snapshot.syncState ?? SyncState()
+            writebackState = snapshot.writebackState ?? WritebackState()
             schedulingSettings = snapshot.schedulingSettings ?? .default
             workSessions = snapshot.workSessions ?? []
             activeWorkSession = snapshot.activeWorkSession
@@ -219,7 +226,54 @@ final class ScheduleViewModel {
             slots: availableSlots, calendars: calendars, selectedCalendarIDs: selectedCalendarIDs, fixedEvents: fixedEvents,
             planningStart: planningInterval?.start, planningEnd: planningInterval?.end,
             lastCalendarRefresh: lastCalendarRefresh, hasConfirmedPlan: hasConfirmedPlan, calendarScope: selectionScope,
-            workloadSettings: workloadSettings, routines: routines, calendarCoverage: calendarCoverage, syncState: syncState, workSessions: workSessions, schedulingSettings: schedulingSettings, activeWorkSession: activeWorkSession)
+            workloadSettings: workloadSettings, routines: routines, calendarCoverage: calendarCoverage, writebackState: writebackState, syncState: syncState, workSessions: workSessions, schedulingSettings: schedulingSettings, activeWorkSession: activeWorkSession)
+    }
+
+    var canEnableWriteback: Bool { writebackProvider != nil && calendarAuthorization == .connected && !isPlanStorageBlocked }
+    func attachWritebackProvider(_ provider: any CalendarWritebackProviding) { writebackProvider = provider }
+    func enableWriteback() async {
+        guard let writebackProvider, !isBackupRecoveryRequired, !isPublishing else { return }
+        do {
+            try await writebackProvider.authorize()
+            if calendarProvider != nil {
+                guard await updateCalendars(selection: nil) else { throw WritebackError.network }
+            }
+            writebackState.enabled = true
+            savePlan()
+            guard planStore != nil, persistenceMessage == nil, !isPlanStorageBlocked else {
+                writebackState.enabled = false; throw PlanStorageError.unavailable
+            }
+            await publishSchedule()
+        } catch { writebackMessage = (error as? LocalizedError)?.errorDescription ?? WritebackError.network.localizedDescription }
+    }
+    func disableWriteback() { writebackState.enabled = false; writebackPending = false; savePlan() }
+    func resetWritebackDestination() {
+        guard !isPublishing else { return }
+        writebackState = WritebackState(); savePlan()
+        writebackMessage = "書き戻しをOFFにしました。次に有効にすると新しい専用Calendarを作成します。以前のCalendarはGoogle側で管理してください。"
+    }
+    func publishScheduleIfActive() async { if isApplicationActive { await publishSchedule() } }
+    func publishSchedule() async {
+        guard writebackState.enabled, let writebackProvider, !isBackupRecoveryRequired,
+              !isPlanStorageBlocked, persistenceMessage == nil else { return }
+        if isPublishing { writebackPending = true; return }
+        isPublishing = true
+        defer { isPublishing = false }
+        repeat {
+            writebackPending = false
+            let snapshot = result.blocks
+            let titles = Dictionary(uniqueKeysWithValues: Set(snapshot.map(\.taskID)).map { ($0, title(for: $0)) })
+            do {
+                let next = try await writebackProvider.publish(blocks: snapshot, titles: titles, state: writebackState, now: clock(), calendar: calendar)
+                guard writebackState.enabled else { return }
+                writebackState = next
+                writebackMessage = "未来の作業枠をPersonalGantt専用Calendarへ反映しました。"
+                savePlan()
+            } catch {
+                writebackMessage = (error as? LocalizedError)?.errorDescription ?? WritebackError.network.localizedDescription
+                return
+            }
+        } while writebackPending && isApplicationActive && writebackState.enabled && !_Concurrency.Task.isCancelled
     }
 
     var canEnableSync: Bool { syncTransport != nil }
@@ -369,6 +423,7 @@ final class ScheduleViewModel {
             next.plan.planningStart = planningInterval?.start; next.plan.planningEnd = planningInterval?.end
         }
         next.plan.calendarCoverage = sameCalendar ? backup.plan.resolvedCalendarCoverage : nil
+        next.plan.writebackState = writebackState // Destination and consent belong to this device.
         next.plan.schedulingSettings = backup.plan.schedulingSettings ?? .default
         next.plan.version = 4
         next.plan.syncState = syncState // Keep this device identity even if restoration is interrupted.
@@ -642,7 +697,7 @@ final class ScheduleViewModel {
         for _ in 0..<2 {
             let requestTime = clock()
             let range = try resolveHorizon(now: requestTime).interval
-            let sources = try await calendarProvider.loadCalendars()
+            let sources = try await calendarProvider.loadCalendars().filter { $0.id != writebackState.calendarID }
             let effectiveIDs = selection.intersection(Set(sources.map(\.id)))
             let events = effectiveIDs.isEmpty ? [] : try await calendarProvider.loadEvents(in: range, calendarIDs: effectiveIDs)
                 .filter { effectiveIDs.contains($0.calendarID) && !$0.isCancelled }
@@ -711,8 +766,10 @@ final class ScheduleViewModel {
             rebuildProvisionalAvailability()
         }
         googleClientID = clientID
+        writebackState = WritebackState()
         UserDefaults.standard.set(clientID, forKey: "googleOAuthClientID")
         calendarProvider = GoogleCalendarService.live(clientID: clientID)
+        writebackProvider = (calendarProvider as? GoogleCalendarService)?.makeWritebackService()
         calendarAuthorization = calendarProvider?.authorization ?? .signedOut
         calendarMessage = nil
         savePlan()
@@ -725,6 +782,7 @@ final class ScheduleViewModel {
             try provider.disconnect()
             selectionStore?.clear(clientID: selectionScope)
             automaticRefreshPending = false
+            writebackState = WritebackState()
             calendarAuthorization = provider.authorization
             calendars = []
             selectedCalendarIDs = []

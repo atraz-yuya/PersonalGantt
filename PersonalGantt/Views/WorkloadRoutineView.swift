@@ -8,6 +8,7 @@ struct WorkloadRoutineView: View {
     @State private var message: String?
     @State private var editor: RoutineEditorRoute?
     @State private var deleting: Routine?
+    @State private var confirmsWriteback = false
 
     init(model: ScheduleViewModel) {
         self.model = model
@@ -18,6 +19,17 @@ struct WorkloadRoutineView: View {
     var body: some View {
         NavigationStack {
             List {
+                Section("Googleへの書き戻し") {
+                    Toggle("専用Calendarへ書き戻す", isOn: Binding(get: { model.writebackState.enabled }, set: { enabled in
+                        if enabled { confirmsWriteback = true } else { model.disableWriteback() }
+                    })).disabled(!model.canEnableWriteback && !model.writebackState.enabled || model.isPublishing)
+                    Text("初期状態はOFFです。有効化するとGoogleの追加同意を行い、PersonalGantt専用Calendarだけに未来の作業枠を書き込みます。このCalendarは取り込み対象から外します。OFFにしても既存の予定は残ります。複数端末では1台だけを発行元にしてください。")
+                        .font(.caption).foregroundStyle(.secondary)
+                    if let message = model.writebackMessage { Text(message).font(.caption).foregroundStyle(.secondary) }
+                    if model.isPublishing { ProgressView("書き戻し中…") }
+                    Button("今すぐ書き戻す") { _Concurrency.Task { await model.publishSchedule() } }.disabled(!model.writebackState.enabled || model.isPublishing)
+                    Button("専用Calendarを次回から作り直す") { model.resetWritebackDestination() }.disabled(model.isPublishing)
+                }
                 Section("端末間の同期") {
                     Toggle("iCloud自動同期", isOn: Binding(get: { model.syncState.isEnabled }, set: { model.setSyncEnabled($0) }))
                         .disabled(!model.canEnableSync)
@@ -115,6 +127,10 @@ struct WorkloadRoutineView: View {
                         .font(.caption).foregroundStyle(.secondary)
                 }
             }
+            .alert("Googleへの書き戻しを有効にしますか？", isPresented: $confirmsWriteback) {
+                Button("有効にしてGoogleへ同意") { _Concurrency.Task { await model.enableWriteback() } }
+                Button("キャンセル", role: .cancel) { }
+            } message: { Text("追加する権限は、アプリが作成した専用Calendarの予定を編集する権限です。既存の授業・仕事Calendarは変更しません。Google側の手編集を検出すると上書きを止めます。") }
             .navigationTitle("作業量・ルーティン")
             .toolbar { ToolbarItem(placement: .cancellationAction) { Button("閉じる") { dismiss() } } }
             .sheet(item: $editor) { route in

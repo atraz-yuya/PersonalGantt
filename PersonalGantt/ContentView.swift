@@ -45,6 +45,12 @@ struct ContentView: View {
 
     var body: some View {
         workspace
+            .onChange(of: model.result.blocks) { _, _ in
+                _Concurrency.Task { await model.publishScheduleIfActive() }
+            }
+            .onChange(of: model.tasks) { _, _ in
+                _Concurrency.Task { await model.publishScheduleIfActive() }
+            }
             .onChange(of: model.syncState.records) { _, _ in
                 _Concurrency.Task { await model.synchronizeIfActive() }
             }

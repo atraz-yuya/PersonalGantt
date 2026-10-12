@@ -3,9 +3,14 @@ import Foundation
 @MainActor
 protocol GoogleTokenProviding {
     var isSignedIn: Bool { get }
+    var grantedScopes: Set<String> { get }
     func signIn() async throws
     func accessToken(forceRefresh: Bool) async throws -> String
     func signOut() throws
+}
+
+@MainActor extension GoogleTokenProviding {
+    var grantedScopes: Set<String> { GoogleOAuthConfiguration.scopes }
 }
 
 @MainActor
@@ -25,9 +30,18 @@ final class GoogleOAuthClient: GoogleTokenProviding {
         self.authenticator = authenticator
         self.clock = clock
     }
+    var grantedScopes: Set<String> {
+        guard let value = try? storage.read(), value.clientID == configuration.clientID else { return [] }
+        return value.scopes
+    }
+    func authorizeWriteback() async throws {
+        let upgraded = GoogleOAuthClient(configuration: GoogleOAuthConfiguration(clientID: configuration.clientID, writebackEnabled: true),
+            storage: storage, transport: transport, authenticator: authenticator, clock: clock)
+        try await upgraded.signIn()
+    }
     var isSignedIn: Bool {
         guard let value = try? storage.read() else { return false }
-        return value.clientID == configuration.clientID && GoogleOAuthConfiguration.scopes.isSubset(of: value.scopes)
+        return value.clientID == configuration.clientID && configuration.authorizationScopes.isSubset(of: value.scopes)
     }
     func signIn() async throws {
         let attempt = try GoogleOAuthAttempt.make(configuration: configuration)
@@ -44,7 +58,7 @@ final class GoogleOAuthClient: GoogleTokenProviding {
     }
     func accessToken(forceRefresh: Bool = false) async throws -> String {
         guard let previous = try storage.read(), previous.clientID == configuration.clientID,
-              GoogleOAuthConfiguration.scopes.isSubset(of: previous.scopes) else { throw GoogleCalendarError.authentication }
+              configuration.authorizationScopes.isSubset(of: previous.scopes) else { throw GoogleCalendarError.authentication }
         if !forceRefresh && previous.expiresAt > clock().addingTimeInterval(60) { return previous.accessToken }
         guard let refresh = previous.refreshToken else { throw GoogleCalendarError.authentication }
         do {
@@ -65,7 +79,7 @@ final class GoogleOAuthClient: GoogleTokenProviding {
         guard response.token_type.lowercased() == "bearer", !response.access_token.isEmpty,
               response.expires_in.isFinite, response.expires_in > 0 else { throw GoogleCalendarError.invalidResponse }
         let scopes = response.scope.map { Set($0.split(separator: " ").map(String.init)) } ?? previous?.scopes ?? []
-        guard GoogleOAuthConfiguration.scopes.isSubset(of: scopes) else { throw GoogleCalendarError.insufficientScope }
+        guard configuration.authorizationScopes.isSubset(of: scopes) else { throw GoogleCalendarError.insufficientScope }
         return GoogleCredentials(clientID: configuration.clientID, accessToken: response.access_token,
             refreshToken: response.refresh_token ?? previous?.refreshToken,
             expiresAt: clock().addingTimeInterval(response.expires_in), scopes: scopes)
