@@ -38,7 +38,9 @@ struct BackupPreviewView: View {
                     Text("開始済みの端末内の時間枠は保持します。未来の作業は連携先の最新予定に合わせて再計算します。")
                     Text("Googleへのログイン、使用Calendar、Remindersへの許可と使用リストは各端末で設定してください。")
                     Text("別の端末では、同じReminderを確認できた設定だけを引き継ぎます。対応が不明な設定は保留として残します。")
-                    Text("Google CalendarやApple Remindersの内容を書き換える操作は行いません。")
+                    Text(model.writebackState.enabled
+                         ? "Apple Remindersの内容は変更しません。書き戻しがONのこの端末では、再計算した未来の枠を専用Calendarへ反映します。"
+                         : "Google CalendarやApple Remindersの内容を書き換える操作は行いません。")
                 }
             }
             .navigationTitle("バックアップを確認")

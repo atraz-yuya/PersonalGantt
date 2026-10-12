@@ -1,5 +1,7 @@
 # Google Calendar OAuth設定（Phase 4.5）
 
+最新UIの入口は「サイドバー/メニュー → 設定 → 連携 → Google Calendar」です。手動更新は「カレンダーを更新」。[UI再設計の報告](UINavigation.md)を参照してください。
+
 PersonalGanttはGoogle Calendar APIへ直接接続します。Apple Calendarへの同期は不要です。
 通常は読み取りのみです。Final Integrationで、明示的にONにした場合だけ専用Calendarへ書き戻す処理を追加しました。Mac/iOSとも、iOSタイプのOAuthクライアントを使います。
 書き戻しを使う場合のみ、Data Accessに `https://www.googleapis.com/auth/calendar.app.created` を追加し、アプリ設定から追加同意します。読み取りだけなら以下の2scopeで利用できます。詳細は[Final Integrationの設定と制約](FinalIntegration.md)を参照してください。

@@ -31,6 +31,7 @@ final class ScheduleViewModel {
     private(set) var fixedEvents: [FixedEvent] = []
     private(set) var calendarAuthorization: CalendarAuthorization = .signedOut
     private(set) var calendarMessage: String?
+    private(set) var calendarRefreshFailed = false
     private(set) var isLoadingCalendars = false
     private(set) var lastCalendarRefresh: Date?
     private(set) var planningInterval: DateInterval?
@@ -569,6 +570,7 @@ final class ScheduleViewModel {
         if calendarAuthorization == .connected {
             await refreshCalendars()
         } else if hasConfirmedPlan {
+            calendarRefreshFailed = !selectedCalendarIDs.isEmpty
             calendarMessage = calendarAuthorization.description + " 現在の予定を保持しています。"
         }
     }
@@ -689,15 +691,18 @@ final class ScheduleViewModel {
         do {
             if requestAccess { calendarAuthorization = try await provider.requestAccess() }
             guard calendarAuthorization == .connected else {
+                calendarRefreshFailed = !selection.isEmpty
                 calendarMessage = calendarAuthorization.description + " 現在の予定を保持しています。"
                 refreshDerivedPeriodAfterFailure()
                 return false
             }
             if validateConnection { try await provider.validateConnection() }
             try await readCalendarSnapshot(selection: selection)
+            calendarRefreshFailed = false
             return true
         } catch {
             calendarAuthorization = provider.authorization
+            calendarRefreshFailed = true
             calendarMessage = "読み込みに失敗しました。現在の予定を保持します。\n\(safeMessage(error))"
             refreshDerivedPeriodAfterFailure()
             return false
@@ -789,11 +794,13 @@ final class ScheduleViewModel {
         writebackProvider = (calendarProvider as? GoogleCalendarService)?.makeWritebackService()
         calendarAuthorization = calendarProvider?.authorization ?? .signedOut
         calendarMessage = nil
+        calendarRefreshFailed = false
         savePlan()
         return true
     }
 
     func disconnectGoogle() {
+        calendarRefreshFailed = false
         guard !isLoadingCalendars, let provider = calendarProvider as? GoogleCalendarService else { return }
         do {
             try provider.disconnect()

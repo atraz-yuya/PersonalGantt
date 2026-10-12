@@ -11,6 +11,7 @@ final class ReminderSyncViewModel {
     private(set) var importedTasks: [Task] = []
     private(set) var isLoading = false
     private(set) var message: String?
+    private(set) var lastOperationFailed = false
     private(set) var lastRefresh: Date?
     private(set) var isStorageAvailable = true
     private(set) var transferTaskIDs: [UUID: UUID] = [:]
@@ -35,6 +36,7 @@ final class ReminderSyncViewModel {
             selectedListIDs = state.selectedListIDs
         } catch {
             isStorageAvailable = false
+            lastOperationFailed = true
             message = ReminderServiceError.localStorage.localizedDescription
         }
     }
@@ -62,10 +64,12 @@ final class ReminderSyncViewModel {
         lastRefresh = nil
         transferTaskIDs = [:]
         message = "ファイルの設定を読み込みました。Remindersの再取得を待っています。"
+        lastOperationFailed = false
     }
     func blockAfterInterruptedRestore() {
         isStorageAvailable = false
         message = BackupError.recoveryRequired.localizedDescription
+        lastOperationFailed = true
     }
 
     func waitingDescription(for record: ReminderRecord) -> String {
@@ -83,6 +87,7 @@ final class ReminderSyncViewModel {
     func loadState() async {
         authorization = provider.authorization
         guard authorization == .fullAccess else {
+            lastOperationFailed = !selectedListIDs.isEmpty
             if lastRefresh != nil { message = authorization.description + " 以前のタスクを保持しています。" }
             return
         }
@@ -119,6 +124,7 @@ final class ReminderSyncViewModel {
             authorization = provider.authorization
             if requestAccess { authorization = try await provider.requestAccess() }
             guard authorization == .fullAccess else {
+                lastOperationFailed = !selectedListIDs.isEmpty
                 message = authorization.description + " 以前のタスクを保持しています。"
                 return false
             }
@@ -157,6 +163,7 @@ final class ReminderSyncViewModel {
         records = fetched.sorted { $0.title == $1.title ? $0.id < $1.id : $0.title < $1.title }
         authorization = provider.authorization
         lastRefresh = clock()
+        lastOperationFailed = false
         message = effective == selection ? nil : "利用できなくなったReminderリストを選択から除外しました。"
         publishTasks()
     }
@@ -178,6 +185,7 @@ final class ReminderSyncViewModel {
         try storage.save(updated)
         state = updated
         message = nil
+        lastOperationFailed = false
         publishTasks()
     }
 
@@ -192,6 +200,7 @@ final class ReminderSyncViewModel {
             state = updated
             publishTasks()
             message = "PersonalGanttの配置対象から外しました。"
+            lastOperationFailed = false
             return true
         } catch { report(error); return false }
     }
@@ -215,6 +224,7 @@ final class ReminderSyncViewModel {
             state = refreshedState
             records = refreshedRecords
             message = nil
+            lastOperationFailed = false
             publishTasks()
         } catch { report(error) }
         while pendingRefresh && !_Concurrency.Task.isCancelled {
@@ -231,6 +241,7 @@ final class ReminderSyncViewModel {
         onTasksChanged(importedTasks)
     }
     private func report(_ error: Error) {
+        lastOperationFailed = true
         authorization = provider.authorization
         let reason = (error as? ReminderServiceError)?.localizedDescription
             ?? (error as? TaskInputError)?.localizedDescription

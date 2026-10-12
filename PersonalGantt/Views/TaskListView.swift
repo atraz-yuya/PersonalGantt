@@ -5,7 +5,7 @@ struct TaskListView: View {
     let onDetail: (UUID) -> Void
     let onEdit: (Task) -> Void
     let onDelete: (Task) -> Void
-    let onReminders: () -> Void
+    let onInputQueue: () -> Void
 
     var body: some View {
         List {
@@ -13,7 +13,7 @@ struct TaskListView: View {
                 Section("入力待ち") {
                     Text("\(reminders.waitingRecords.count)件のReminderに所要時間・締切などの設定が必要です。")
                         .font(.subheadline).foregroundStyle(.secondary)
-                    Button("必要項目を設定", action: onReminders)
+                    Button("入力待ちを開く", action: onInputQueue)
                 }
             }
             Section("未完了タスク") {

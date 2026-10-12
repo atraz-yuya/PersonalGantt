@@ -10,9 +10,15 @@ import AppIntents
 
 @main
 struct PersonalGanttApp: App {
-    @State private var model = ScheduleViewModel.shared
+    @State private var model: ScheduleViewModel
 
     init() {
+        #if DEBUG
+        _model = State(initialValue: Bundle.main.bundleIdentifier == "com.atraz.PersonalGantt.UIPreview"
+            ? NavigationPreview.makeModel() : ScheduleViewModel.shared)
+        #else
+        _model = State(initialValue: ScheduleViewModel.shared)
+        #endif
         PersonalGanttShortcuts.updateAppShortcutParameters()
     }
 

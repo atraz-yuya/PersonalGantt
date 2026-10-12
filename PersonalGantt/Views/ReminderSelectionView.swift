@@ -2,110 +2,116 @@ import SwiftUI
 
 struct ReminderSelectionView: View {
     @Environment(\.dismiss) private var dismiss
+    let embedded: Bool
     @Bindable var model: ReminderSyncViewModel
     @State private var selection: Set<String>
     @State private var editedRecord: ReminderRecord?
     @State private var showsCompleted = false
 
-    init(model: ReminderSyncViewModel) {
+    init(model: ReminderSyncViewModel, embedded: Bool = false) {
+        self.embedded = embedded
         self.model = model
         _selection = State(initialValue: model.selectedListIDs)
     }
 
     var body: some View {
-        NavigationStack {
-            List {
-                Section("Apple Reminders") {
-                    Text(model.authorization.description)
-                    if model.authorization != .fullAccess {
-                        Button("Remindersへのアクセスを許可") {
-                            _Concurrency.Task { await model.requestAccess() }
-                        }
-                        .disabled(model.isLoading || !model.isStorageAvailable)
-                    }
-                    Text("選んだリストのタスクを読み込み、完了／未完了を同期します。OSのアクセス許可は読み書き一括です。")
-                        .font(.caption).foregroundStyle(.secondary)
-                    Text("所要時間と締切の補完値は、この端末のPersonalGanttに保存します。")
-                        .font(.caption).foregroundStyle(.secondary)
-                }
-                if model.authorization == .fullAccess {
-                    Section("使用するReminderリスト") {
-                        if model.lists.isEmpty { Text("使用できるReminderリストがありません。") }
-                        ForEach(model.lists) { list in
-                            Toggle(isOn: Binding(
-                                get: { selection.contains(list.id) },
-                                set: { if $0 { selection.insert(list.id) } else { selection.remove(list.id) } }
-                            )) {
-                                VStack(alignment: .leading) {
-                                    Text(list.title)
-                                    Text(list.accountTitle + (list.allowsCompletionChanges ? "" : "・読み取り専用"))
-                                        .font(.caption).foregroundStyle(.secondary)
-                                }
-                            }.disabled(model.isLoading)
-                        }
-                        Text("選択を変更したら「反映」を押してください。未選択ではReminderを取得しません。")
-                            .font(.caption).foregroundStyle(.secondary)
-                    }
-                    Section("選択したリストのReminder") {
-                        Toggle("完了済みも表示", isOn: $showsCompleted)
-                        ForEach(model.records.filter { showsCompleted || !$0.isCompleted }) { record in
-                            VStack(alignment: .leading, spacing: 6) {
-                                HStack {
-                                    Text(record.displayTitle).strikethrough(record.isCompleted)
-                                    Spacer()
-                                    if record.isCompleted { Text("完了").foregroundStyle(.secondary) }
-                                    else if model.isExcluded(record.id) { Text("配置対象外").foregroundStyle(.secondary) }
-                                    else if model.task(for: record.id) != nil { Text("配置対象").foregroundStyle(.green) }
-                                    else { Text("入力待ち").foregroundStyle(.orange) }
-                                }
-                                if let deadline = record.deadline {
-                                    Text("締切: \(deadline.formatted(date: .abbreviated, time: .shortened))")
-                                        .font(.caption).foregroundStyle(.secondary)
-                                } else {
-                                    Text(record.hasInvalidDeadline ? "Reminders側の締切が不正です。" : "Reminders側の締切は未設定です。")
-                                        .font(.caption).foregroundStyle(.orange)
-                                }
-                                if model.task(for: record.id) == nil && !model.isExcluded(record.id) {
-                                    Text(model.waitingDescription(for: record))
-                                        .font(.caption).foregroundStyle(.orange)
-                                }
-                                Button(model.isExcluded(record.id) ? "所要時間を設定して再び配置する" : "所要時間・締切を設定") {
-                                    editedRecord = record
-                                }.disabled(model.isLoading)
-                            }
-                        }
-                        if model.records.isEmpty { Text("選択したリストにReminderがありません。") }
-                    }
-                    Button("Remindersを再読み込み") {
-                        _Concurrency.Task { await model.refresh() }
-                    }.disabled(model.isLoading)
-                }
-                if model.isLoading { ProgressView("Remindersを読み込み中…") }
-                if let message = model.message { Text(message).foregroundStyle(.orange) }
-            }
-            .navigationTitle("Remindersを選択")
-            .onChange(of: model.lists) { _, lists in selection.formIntersection(Set(lists.map(\.id))) }
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("閉じる") { dismiss() }.disabled(model.isLoading)
-                }
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("反映") {
-                        _Concurrency.Task {
-                            if await model.applySelection(selection) {
-                                selection = model.selectedListIDs
-                            }
-                        }
-                    }.disabled(model.authorization != .fullAccess || model.isLoading || !model.isStorageAvailable)
-                }
-            }
-            .sheet(item: $editedRecord) { record in
-                ReminderRequirementsView(record: record, model: model)
-            }
+        Group {
+            if embedded { content } else { NavigationStack { content } }
         }
         #if os(macOS)
         .frame(minWidth: 480, idealWidth: 560, minHeight: 600)
         #endif
+    }
+
+    private var content: some View {
+        List {
+            Section("Apple Reminders") {
+                Text(model.authorization.description)
+                if model.authorization != .fullAccess {
+                    Button("Remindersへのアクセスを許可") {
+                        _Concurrency.Task { await model.requestAccess() }
+                    }
+                    .disabled(model.isLoading || !model.isStorageAvailable)
+                }
+                Text("選んだリストのタスクを読み込み、完了／未完了を同期します。OSのアクセス許可は読み書き一括です。")
+                    .font(.caption).foregroundStyle(.secondary)
+                Text("所要時間と締切の補完値は、この端末のPersonalGanttに保存します。")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
+            if model.authorization == .fullAccess {
+                Section("使用するReminderリスト") {
+                    if model.lists.isEmpty { Text("使用できるReminderリストがありません。") }
+                    ForEach(model.lists) { list in
+                        Toggle(isOn: Binding(
+                            get: { selection.contains(list.id) },
+                            set: { if $0 { selection.insert(list.id) } else { selection.remove(list.id) } }
+                        )) {
+                            VStack(alignment: .leading) {
+                                Text(list.title)
+                                Text(list.accountTitle + (list.allowsCompletionChanges ? "" : "・読み取り専用"))
+                                    .font(.caption).foregroundStyle(.secondary)
+                            }
+                        }.disabled(model.isLoading)
+                    }
+                    Text("選択を変更したら「反映」を押してください。未選択ではReminderを取得しません。")
+                        .font(.caption).foregroundStyle(.secondary)
+                }
+                Section("選択したリストのReminder") {
+                    Toggle("完了済みも表示", isOn: $showsCompleted)
+                    ForEach(model.records.filter { showsCompleted || !$0.isCompleted }) { record in
+                        VStack(alignment: .leading, spacing: 6) {
+                            HStack {
+                                Text(record.displayTitle).strikethrough(record.isCompleted)
+                                Spacer()
+                                if record.isCompleted { Text("完了").foregroundStyle(.secondary) }
+                                else if model.isExcluded(record.id) { Text("配置対象外").foregroundStyle(.secondary) }
+                                else if model.task(for: record.id) != nil { Text("配置対象").foregroundStyle(.green) }
+                                else { Text("入力待ち").foregroundStyle(.orange) }
+                            }
+                            if let deadline = record.deadline {
+                                Text("締切: \(deadline.formatted(date: .abbreviated, time: .shortened))")
+                                    .font(.caption).foregroundStyle(.secondary)
+                            } else {
+                                Text(record.hasInvalidDeadline ? "Reminders側の締切が不正です。" : "Reminders側の締切は未設定です。")
+                                    .font(.caption).foregroundStyle(.orange)
+                            }
+                            if model.task(for: record.id) == nil && !model.isExcluded(record.id) {
+                                Text(model.waitingDescription(for: record))
+                                    .font(.caption).foregroundStyle(.orange)
+                            }
+                            Button(model.isExcluded(record.id) ? "所要時間を設定して再び配置する" : "所要時間・締切を設定") {
+                                editedRecord = record
+                            }.disabled(model.isLoading)
+                        }
+                    }
+                    if model.records.isEmpty { Text("選択したリストにReminderがありません。") }
+                }
+                Button("Remindersを再読み込み") {
+                    _Concurrency.Task { await model.refresh() }
+                }.disabled(model.isLoading)
+            }
+            if model.isLoading { ProgressView("Remindersを読み込み中…") }
+            if let message = model.message { Text(message).foregroundStyle(.orange) }
+        }
+        .navigationTitle("Remindersを選択")
+        .onChange(of: model.lists) { _, lists in selection.formIntersection(Set(lists.map(\.id))) }
+        .toolbar {
+            if !embedded {
+                ToolbarItem(placement: .cancellationAction) { Button("閉じる") { dismiss() }.disabled(model.isLoading) }
+            }
+            ToolbarItem(placement: .confirmationAction) {
+                Button("反映") {
+                    _Concurrency.Task {
+                        if await model.applySelection(selection) {
+                            selection = model.selectedListIDs
+                        }
+                    }
+                }.disabled(model.authorization != .fullAccess || model.isLoading || !model.isStorageAvailable)
+            }
+        }
+        .sheet(item: $editedRecord) { record in
+            ReminderRequirementsView(record: record, model: model)
+        }
     }
 }
 
