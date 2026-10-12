@@ -1,5 +1,7 @@
 # 個人利用：バックアップとMac・iPhone・iPadの手動受け渡し
 
+2026-10-12追記: Final Integrationでは内部PlanSnapshot v4へ更新し、旧v1〜v3も読み込めます。優先度・実績・配置/休憩設定・同期メタデータを追加しました。実績はIDで重複排除して受け取り先の履歴と統合し、同期端末ID・同期ON/OFF・Google書き戻し先/同意は受け取り先のものを維持します。Google Tokenは含めません。現在の署名ではCloudKitを有効化せず、以下のJSON手順を引き続き使えます。[最新の報告](FinalIntegration.md)を参照してください。
+
 2026-10-07。有料Developer Programへの加入を行わず、CloudKitの自動同期を見送る方針へ変更しました。
 各端末でGoogle Calendar・Apple Remindersへ接続し、PersonalGantt固有のデータはファイルで受け渡します。
 個人利用を想定しており、App Storeへの公開やCloudKit Containerの作成は行っていません。
@@ -26,6 +28,8 @@
 | 手動Task | UUID、タイトル、所要時間、締切、完了状態をファイルから復元。ファイルにない手動Taskは配置対象から外れる。 |
 | Reminder設定 | 所要時間、補完締切、配置対象外、繰り返し回の識別情報。別端末では外部識別子で確認する。 |
 | 計画・履歴 | ScheduledBlock、未配置情報、配置対象外Taskの表示タイトル。開始済みの受け取り先の枠も保持する。 |
+| 実績・配置設定 | WorkSessionをIDで統合。priority、分散モード、最適化/休憩、上限、Routineも引き継ぐ。 |
+| 同期・書き戻し | 同期対象内容を受け取り先の編集として記録。端末の同期ID/有効化状態と書き戻し先/同意は維持。 |
 | 前回のGoogle表示 | Calendar・FixedEvent・AvailableSlot・対象期間。現在のClient IDとCalendar選択が同じ場合だけ使用する。 |
 | 受け取り先の連携 | Google認証・Client ID・使用Calendarは変更しない。別端末のRemindersの許可・使用リストも変更しない。 |
 
@@ -40,7 +44,7 @@
 まだ対象リストを取得していない場合、外部IDがない場合、同じIDが複数ある場合は設定を「対応確認待ち」として端末内に保存します。
 対象リストを選択して再読み込みすると、安全に一致した設定を適用します。不明な設定は残し、名前では照合しません。
 Reminders側のタイトル・元の締切・完了状態は再取得したRemindersを正とします。
-読み込みによってネイティブReminderの完了/未完了を変更したり、Google予定を書き換えたりしません。
+読み込みによってネイティブReminderの完了/未完了を変更しません。Google書き戻しOFFならGoogle予定も変更しません。受け取り先で書き戻しを明示ONにしている場合は、復元後に再計算した未来の枠を専用Calendarへ反映します。
 
 開始済みの時間枠は両端末のものを保持します。重複する保持枠があれば警告し、Ganttで確認できます。
 これらは予定の履歴であり、作業実績やcompletedMinutesではありません。
@@ -62,7 +66,7 @@ SwiftDataの計画とJSONのReminder設定を両方置き換える前に、復�
 復元中にアプリが終了した場合も、次の起動時に同じJournalから巻き戻します。
 読み込めないJournalは勝手に削除せず、保存処理を停止して案内します。
 
-## 変更ファイル
+## 初期バックアップ実装時の変更ファイル
 
 - `Persistence/PersonalGanttBackup.swift`：ファイル形式・検証・復元前Journal・巻き戻し。
 - `Persistence/LockedBackupStores.swift`：起動時の回復に失敗した場合の保存停止。
@@ -81,7 +85,7 @@ SwiftDataの計画とJSONのReminder設定を両方置き換える前に、復�
 Scheduler・AvailabilityService・ScheduleReplannerの純粋なコードは変更していません。
 ユーザーの既存Team設定は維持し、コミットには含めません。
 
-## 検証・制約
+## 初期バックアップ実装時の検証・制約（2026-10-07）
 
 全303ケース成功、失敗0・スキップ0。既存283ケースに20ケースを追加しました。
 結果：`/tmp/PersonalGantt-backup-final3-tests.xcresult`。定義数237、パラメータ展開後303です。

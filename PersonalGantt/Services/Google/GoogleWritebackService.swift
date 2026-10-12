@@ -18,17 +18,28 @@ import CryptoKit
         let destination = try await dedicatedCalendar(state)
         if destination != state.calendarID { next.calendarID = destination; next.events = [:] }
         let prefix = "/calendar/v3/calendars/\(encoded(destination))/events"
-        var desired: [String: PublishedEvent] = [:]
-        var counts: [String: Int] = [:]
-        for block in blocks.filter({ $0.start > now }).sorted(by: { $0.start == $1.start ? $0.taskID.uuidString < $1.taskID.uuidString : $0.start < $1.start }) {
-            let day = calendar.startOfDay(for: block.start).timeIntervalSinceReferenceDate.bitPattern
-            let group = "\(block.taskID)|\(day)"
-            let ordinal = counts[group, default: 0]; counts[group] = ordinal + 1
-            let seed = "\(state.publisherID)|\(group)|\(ordinal)"
-            let id = SHA256.hash(data: Data(seed.utf8)).map { String(format: "%02x", $0) }.joined()
-            desired[id] = PublishedEvent(id: id, taskID: block.taskID, start: millisecondDate(block.start), end: millisecondDate(block.end),
-                title: titles[block.taskID] ?? "PersonalGantt", etag: "")
+        func desiredEvents(protecting protectedIDs: Set<String>) -> [String: PublishedEvent] {
+            var desired: [String: PublishedEvent] = [:], counts: [String: Int] = [:]
+            for block in blocks.sorted(by: { $0.start == $1.start ? $0.taskID.uuidString < $1.taskID.uuidString : $0.start < $1.start }) {
+                let day = calendar.startOfDay(for: block.start).timeIntervalSinceReferenceDate.bitPattern
+                let group = "\(block.taskID)|\(day)"
+                var ordinal = counts[group, default: 0]
+                counts[group] = ordinal + 1
+                // Begun blocks retain their ordinal even though they aren't published.
+                guard block.start > now else { continue }
+                var id: String
+                repeat {
+                    let seed = "\(state.publisherID)|\(group)|\(ordinal)"
+                    id = SHA256.hash(data: Data(seed.utf8)).map { String(format: "%02x", $0) }.joined()
+                    ordinal += 1
+                } while protectedIDs.contains(id)
+                counts[group] = ordinal
+                desired[id] = PublishedEvent(id: id, taskID: block.taskID, start: millisecondDate(block.start), end: millisecondDate(block.end),
+                    title: titles[block.taskID] ?? "PersonalGantt", etag: "")
+            }
+            return desired
         }
+        var desired = desiredEvents(protecting: Set(next.events.values.filter { $0.start <= now }.map(\.id)))
         // Discover owned events as well as checkpointed IDs. This recovers a
         // lost create response and cleans up future orphans after a partial run.
         var discovered: [String: RemoteEvent] = [:]
@@ -54,6 +65,8 @@ import CryptoKit
             if let token { guard seen.insert(token).inserted, seen.count < 1000 else { throw WritebackError.network } }
         } while token != nil
         for id in next.events.keys where discovered[id] == nil { throw WritebackError.externalEdit }
+        // Also protect begun orphans recovered after a lost response/checkpoint.
+        desired = desiredEvents(protecting: Set(next.events.values.filter { $0.start <= now }.map(\.id)))
         let remote = discovered
         for id in desired.keys.sorted() {
             let wanted = desired[id]!

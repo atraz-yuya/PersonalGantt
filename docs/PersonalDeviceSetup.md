@@ -1,5 +1,7 @@
 # iPhone・iPadへの個人用インストールとファイル受け渡し
 
+2026-10-12追記: Final Integration後も無料Personal Teamのローカル利用とJSON受け渡しを維持しています。CloudKitは現署名では無効です。Google書き戻しは任意で初期OFF、ONの場合だけ追加scope同意が必要です。[新機能13項目の実機確認と追加設定](FinalIntegration.md)を併せて参照してください。
+
 2026-10-07。無料のApple Account / Personal Teamを使い、Xcodeから自分の実機へインストールします。
 有料Developer Programへの加入やApp Storeへの公開は行いません。
 

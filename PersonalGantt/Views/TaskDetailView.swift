@@ -51,7 +51,7 @@ struct TaskDetailView: View {
                     }
                 }
                 Section("作業実績") {
-                    let sessions = model.workSessions.filter { $0.taskID == taskID }.sorted { $0.end > $1.end }
+                    let sessions = model.sessions(for: taskID).sorted { $0.end > $1.end }
                     if sessions.isEmpty { Text("実績は未入力です。予定から自動では記録しません。") .foregroundStyle(.secondary) }
                     ForEach(sessions) { session in
                         HStack {

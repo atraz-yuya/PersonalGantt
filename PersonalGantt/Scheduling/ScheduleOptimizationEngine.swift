@@ -64,13 +64,17 @@ nonisolated struct ScheduleOptimizationEngine: LocalScheduleOptimizing {
         let tasks = Dictionary(uniqueKeysWithValues: request.tasks.map { ($0.id, $0) })
         let slots = Scheduler().normalizedSlots(request.slots)
         let ordered = result.blocks.sorted { $0.start < $1.start }
+        var slotIndex = 0
+        var latestEnd: Date?
         var violations = 0, allocated: [UUID: Double] = [:], perTaskDay: [UUID: [Date: Double]] = [:]
-        for (index, block) in ordered.enumerated() {
-            if index > 0 && ordered[index - 1].end > block.start { violations += 1 }
+        for block in ordered {
+            if let latestEnd, latestEnd > block.start { violations += 1 }
+            latestEnd = max(latestEnd ?? block.end, block.end)
             guard let task = tasks[block.taskID] else { violations += 1; continue }
             if block.end > task.deadline || block.start >= block.end { violations += 1 }
             if let notBefore = task.notBefore, block.start < notBefore { violations += 1 }
-            if !slots.contains(where: { $0.start <= block.start && $0.end >= block.end }) { violations += 1 }
+            while slotIndex < slots.count && slots[slotIndex].end <= block.start { slotIndex += 1 }
+            if slotIndex == slots.count || slots[slotIndex].start > block.start || slots[slotIndex].end < block.end { violations += 1 }
             if let day = task.routineOccurrence, block.start < day.dayStart || block.end > day.dayEnd { violations += 1 }
             allocated[task.id, default: 0] += block.durationMinutes
             for part in DailyWorkload.dayParts(start: block.start, end: block.end, calendar: request.calendar) {

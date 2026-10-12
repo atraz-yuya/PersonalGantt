@@ -7,6 +7,8 @@ nonisolated struct WorkSession: Identifiable, Codable, Equatable, Sendable {
     var start: Date
     var end: Date
     var actualMinutes: Int
+    var reminderExternalIdentifier: String? = nil
+    var reminderOccurrenceKey: String? = nil
     init(id: UUID = UUID(), taskID: UUID, taskTitle: String = "作業", start: Date, end: Date, actualMinutes: Int) {
         self.id = id; self.taskID = taskID; self.taskTitle = taskTitle
         self.start = start; self.end = end; self.actualMinutes = actualMinutes

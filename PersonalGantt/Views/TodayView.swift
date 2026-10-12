@@ -46,6 +46,10 @@ struct TodayView: View {
                     if let date = model.lastCalendarRefresh {
                         Text("Calendar更新: \(date.formatted(date: .abbreviated, time: .shortened))").font(.caption).foregroundStyle(.secondary)
                     }
+                    if let date = model.lastRecalculation {
+                        Text("再計算: \(date.formatted(date: .omitted, time: .shortened))・\(model.schedulingSettings.distributionMode.displayName)")
+                            .font(.caption).foregroundStyle(.secondary)
+                    }
                     Text("予定変更は再取得後に反映します。バックグラウンド更新の実行時刻はOSが決めます。")
                         .font(.caption).foregroundStyle(.secondary)
                     ForEach(summary.blocks) { block in
