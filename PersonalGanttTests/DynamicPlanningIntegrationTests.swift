@@ -219,7 +219,7 @@ struct DynamicPlanningIntegrationTests {
     @Test(arguments: [1, 2]) func legacyBackupInfersOnlyHistoricallyFetchedCoverage(version: Int) async throws {
         let value = model(); #expect(await value.applyCalendarSelection(["work"]))
         var backup = try value.makeBackup()
-        backup.plan.version = version; backup.plan.calendarCoverage = nil; backup.plan.syncState = nil; backup.plan.workSessions = nil; backup.plan.schedulingSettings = nil
+        backup.plan.version = version; backup.plan.calendarCoverage = nil; backup.plan.syncState = nil; backup.plan.workSessions = nil; backup.plan.schedulingSettings = nil; backup.plan.writebackState = nil
         if version == 1 { backup.plan.workloadSettings = nil; backup.plan.routines = nil }
         let target = model(); #expect(await target.applyCalendarSelection(["work"]))
         try target.restoreBackup(PersonalGanttBackup.decode(backup.encoded()))

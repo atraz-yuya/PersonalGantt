@@ -17,6 +17,7 @@ final class GoogleCalendarService: CalendarProviding {
             storage: GoogleKeychainCredentialStore(), transport: transport, authenticator: GoogleWebAuthenticator())
         return GoogleCalendarService(tokens: oauth, transport: transport, calendar: .autoupdatingCurrent)
     }
+    func makeWritebackService() -> GoogleWritebackService { GoogleWritebackService(tokens: tokens, transport: transport) }
     var authorization: CalendarAuthorization { tokens.isSignedIn ? .connected : .signedOut }
     func requestAccess() async throws -> CalendarAuthorization {
         try await tokens.signIn()

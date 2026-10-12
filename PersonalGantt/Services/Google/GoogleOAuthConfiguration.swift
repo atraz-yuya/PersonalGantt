@@ -4,6 +4,9 @@ import Security
 
 nonisolated struct GoogleOAuthConfiguration: Equatable, Sendable {
     let clientID: String
+    var writebackEnabled = false
+    static let writebackScope = "https://www.googleapis.com/auth/calendar.app.created"
+    var authorizationScopes: Set<String> { writebackEnabled ? Self.scopes.union([Self.writebackScope]) : Self.scopes }
     static let scopes: Set<String> = [
         "https://www.googleapis.com/auth/calendar.calendarlist.readonly",
         "https://www.googleapis.com/auth/calendar.events.readonly"
@@ -34,7 +37,7 @@ nonisolated struct GoogleOAuthAttempt: Sendable {
             URLQueryItem(name: "client_id", value: configuration.clientID),
             URLQueryItem(name: "redirect_uri", value: configuration.redirectURI),
             URLQueryItem(name: "response_type", value: "code"),
-            URLQueryItem(name: "scope", value: GoogleOAuthConfiguration.scopes.sorted().joined(separator: " ")),
+            URLQueryItem(name: "scope", value: configuration.authorizationScopes.sorted().joined(separator: " ")),
             URLQueryItem(name: "code_challenge", value: Self.challenge(for: verifier)),
             URLQueryItem(name: "code_challenge_method", value: "S256"),
             URLQueryItem(name: "state", value: state),

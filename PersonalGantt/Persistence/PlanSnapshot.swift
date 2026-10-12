@@ -24,6 +24,7 @@ nonisolated struct PlanSnapshot: Codable, Equatable, Sendable {
     var routines: [Routine]? = nil
     /// Version 3 separates fetched Calendar range from derived planning range.
     var calendarCoverage: CalendarCoverage? = nil
+    var writebackState: WritebackState? = nil
     var syncState: SyncState? = nil
     var workSessions: [WorkSession]? = nil
     var schedulingSettings: SchedulingSettings? = nil
@@ -70,6 +71,7 @@ nonisolated struct PlanSnapshot: Codable, Equatable, Sendable {
                 else { throw PlanStorageError.invalidSnapshot }
             }
         }
+        if let writebackState { guard version >= 4, (try? writebackState.validate()) != nil else { throw PlanStorageError.invalidSnapshot } }
         if schedulingSettings != nil && version < 4 { throw PlanStorageError.invalidSnapshot }
         if let workSessions {
             guard version >= 4, Set(workSessions.map(\.id)).count == workSessions.count,
