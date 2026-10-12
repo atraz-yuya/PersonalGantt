@@ -24,7 +24,12 @@ import UIKit
     private var trusted: LocalTrustedDevice?
     private var pairing = false
     private var expectedPeer: MCPeerID?
-    init(deviceID: UUID, name: String) { self.deviceID = deviceID; self.name = name }
+    private var certificateCallbacks: Set<MCPeerID> = []
+    private var states: [MCPeerID: MCSessionState] = [:]
+    private let identityAlgorithm: LocalSyncIdentity.KeyAlgorithm?
+    init(deviceID: UUID, name: String, identityAlgorithm: LocalSyncIdentity.KeyAlgorithm? = nil) {
+        self.deviceID = deviceID; self.name = name; self.identityAlgorithm = identityAlgorithm
+    }
     static var deviceName: String {
         #if os(macOS)
         let proposed = Host.current().localizedName ?? "Mac"
@@ -40,7 +45,10 @@ import UIKit
     func start(pairing: Bool, trusted: LocalTrustedDevice?) throws {
         if session != nil { return }
         self.trusted = trusted; self.pairing = pairing
-        let (identity, hash) = try LocalSyncIdentity.load(deviceID: deviceID)
+        if identityAlgorithm == nil {
+            try LocalSyncIdentity.requireCompatibleIdentity(deviceID: deviceID, trusted: trusted)
+        }
+        let (identity, hash) = try LocalSyncIdentity.load(deviceID: deviceID, algorithm: identityAlgorithm ?? .rsa)
         certificateHash = hash
         let defaults = UserDefaults.standard
         let key = "personalGantt.localPeer." + deviceID.uuidString
@@ -53,8 +61,14 @@ import UIKit
             defaults.set(try NSKeyedArchiver.archivedData(withRootObject: ownPeer, requiringSecureCoding: true), forKey: key)
         }
         peerID = ownPeer
-        let connection = MCSession(peer: ownPeer, securityIdentity: [identity], encryptionPreference: .required)
+        let values = try LocalSyncIdentity.securityIdentity(identity)
+        let connection = MCSession(peer: ownPeer, securityIdentity: values, encryptionPreference: .required)
+        guard let first = connection.securityIdentity?.first,
+              CFGetTypeID(first as CFTypeRef) == SecIdentityGetTypeID(),
+              try LocalSyncIdentity.validate(first as! SecIdentity) == hash else { throw LocalSyncError.storage }
         connection.delegate = self; session = connection
+        LocalSyncDiagnostics.log("session.created", peer: ownPeer.displayName, fingerprint: hash,
+                                 detail: "firstType=SecIdentity encryption=required delegateAttached=true")
         startAdvertising()
         let browse = MCNearbyServiceBrowser(peer: ownPeer, serviceType: LocalSyncConstants.serviceType)
         browse.delegate = self; browser = browse; browse.startBrowsingForPeers()
@@ -73,12 +87,15 @@ import UIKit
         advertiser?.stopAdvertisingPeer(); browser?.stopBrowsingForPeers(); session?.disconnect()
         advertiser?.delegate = nil; browser?.delegate = nil; session?.delegate = nil
         advertiser = nil; browser = nil; session = nil; expectedPeer = nil; discovered = [:]; descriptions = [:]; certificates = [:]
+        certificateCallbacks = []; states = [:]
     }
     func disconnect() { session?.disconnect(); expectedPeer = nil; certificates = [:] }
     func connect(_ peer: LocalPeer) throws {
         guard let target = discovered[peer.id], let session, let browser, expectedPeer == nil,
               peer.id == trusted?.deviceID || pairing && peer.pairing else { throw LocalSyncError.untrusted }
         expectedPeer = target
+        certificateCallbacks.remove(target); certificates.removeValue(forKey: target)
+        LocalSyncDiagnostics.log("invitation.sent", peer: target.displayName)
         let invitation = LocalHello(deviceID: deviceID, name: name, nonce: UUID(), pairing: pairing)
         browser.invitePeer(target, to: session, withContext: try JSONEncoder().encode(invitation), timeout: 15)
     }
@@ -97,12 +114,18 @@ extension MultipeerLocalLink: MCNearbyServiceBrowserDelegate {
                   self.pairing || self.trusted?.deviceID == id else { return }
             guard info["version"] == String(LocalSyncConstants.protocolVersion) else { self.onEvent?(.incompatiblePeer); return }
             let peer = LocalPeer(id: id, name: peerID.displayName, pairing: info["pair"] == "1")
-            self.discovered[id] = peerID; self.descriptions[peerID] = peer; self.onEvent?(.found(peer))
+            LocalSyncDiagnostics.log("discovery.found", peer: peer.name, detail: "pairing=\(peer.pairing)")
+            // Discovery updates may arrive after an invitation (including an
+            // old pair=0 advertisement). Keep that invitation's accepted peer
+            // identity until the active session ends.
+            let active = peerID == self.expectedPeer ? self.descriptions[peerID] ?? peer : peer
+            self.discovered[active.id] = peerID; self.descriptions[peerID] = active; self.onEvent?(.found(active))
         }
     }
     nonisolated func browser(_ browser: MCNearbyServiceBrowser, lostPeer peerID: MCPeerID) {
         _Concurrency.Task { @MainActor [weak self] in
-            guard let self, self.browser === browser, let peer = self.descriptions.removeValue(forKey: peerID) else { return }
+            guard let self, self.browser === browser, let peer = self.descriptions[peerID] else { return }
+            if peerID != self.expectedPeer { self.descriptions.removeValue(forKey: peerID) }
             self.discovered.removeValue(forKey: peer.id); self.onEvent?(.lost(peer.id))
         }
     }
@@ -115,9 +138,14 @@ extension MultipeerLocalLink: MCNearbyServiceAdvertiserDelegate {
         _Concurrency.Task { @MainActor [weak self] in
             guard let self, self.advertiser === advertiser, self.expectedPeer == nil, let context, context.count < 4096,
                   let hello = try? JSONDecoder().decode(LocalHello.self, from: context), hello.deviceID != self.deviceID,
-                  self.trusted?.deviceID == hello.deviceID || self.pairing && hello.pairing else { invitationHandler(false, nil); return }
+                  self.trusted?.deviceID == hello.deviceID || self.pairing && hello.pairing else {
+                LocalSyncDiagnostics.log("invitation.rejected", peer: peerID.displayName, detail: "reason=inactiveOrBusyOrUnauthorized")
+                invitationHandler(false, nil); return
+            }
             self.expectedPeer = peerID
+            self.certificateCallbacks.remove(peerID); self.certificates.removeValue(forKey: peerID)
             self.descriptions[peerID] = LocalPeer(id: hello.deviceID, name: peerID.displayName, pairing: hello.pairing)
+            LocalSyncDiagnostics.log("invitation.accepted", peer: peerID.displayName)
             invitationHandler(true, self.session)
         }
     }
@@ -131,15 +159,32 @@ extension MultipeerLocalLink: MCSessionDelegate {
         if let first = certificates?.first, CFGetTypeID(first as CFTypeRef) == SecCertificateGetTypeID() {
             hash = Data(SHA256.hash(data: SecCertificateCopyData(first as! SecCertificate) as Data))
         } else { hash = nil }
+        LocalSyncDiagnostics.log("certificate.callback", peer: peerID.displayName, fingerprint: hash,
+                                 detail: "chainCount=\(certificates?.count ?? 0)")
         _Concurrency.Task { @MainActor [weak self] in
-            guard let self, self.session === session, self.expectedPeer == peerID, let hash,
-                  self.pairing || self.trusted?.certificateHash == hash else { certificateHandler(false); return }
-            self.certificates[peerID] = hash; certificateHandler(true)
+            guard let self, self.session === session else {
+                LocalSyncDiagnostics.log("certificate.rejected", peer: peerID.displayName, fingerprint: hash, detail: "reason=staleSession")
+                certificateHandler(false); return
+            }
+            self.certificateCallbacks.insert(peerID)
+            let decision = LocalCertificateDecision.evaluate(hash: hash, peer: self.descriptions[peerID],
+                expected: self.expectedPeer == peerID,
+                anotherPeerExpected: self.expectedPeer != nil && self.expectedPeer != peerID,
+                pairing: self.pairing, trusted: self.trusted)
+            LocalSyncDiagnostics.log(decision.accepted ? "certificate.accepted" : "certificate.rejected",
+                                     peer: peerID.displayName, fingerprint: hash, detail: "reason=\(decision.rawValue)")
+            if decision.accepted { self.certificates[peerID] = hash }
+            certificateHandler(decision.accepted)
         }
     }
     nonisolated func session(_ session: MCSession, peer peerID: MCPeerID, didChange state: MCSessionState) {
         _Concurrency.Task { @MainActor [weak self] in
             guard let self, self.session === session else { return }
+            let previous = self.states[peerID]?.rawValue ?? MCSessionState.notConnected.rawValue
+            self.states[peerID] = state
+            let names = ["notConnected", "connecting", "connected"]
+            LocalSyncDiagnostics.log("session.state", peer: peerID.displayName, fingerprint: self.certificates[peerID],
+                detail: "\(names.indices.contains(previous) ? names[previous] : "unknown")->\(names.indices.contains(state.rawValue) ? names[state.rawValue] : "unknown") certificateCallback=\(self.certificateCallbacks.contains(peerID)) expected=\(self.expectedPeer == peerID)")
             switch state {
             case .connected:
                 guard peerID == self.expectedPeer, let peer = self.descriptions[peerID], let hash = self.certificates[peerID] else { self.disconnect(); self.onEvent?(.failed(.untrusted)); return }

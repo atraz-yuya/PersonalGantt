@@ -1,0 +1,87 @@
+Mac MCSession: EC failure
+[LocalSync] identity.validated peer=- fingerprint=CERT_FINGERPRINT_01 algorithm=EC256 firstType=SecIdentity publicKeysMatch=true signatureVerified=true
+[LocalSync] session.created peer=MAC_DEVICE fingerprint=CERT_FINGERPRINT_01 firstType=SecIdentity encryption=required delegateAttached=true
+[LocalSync] identity.validated peer=- fingerprint=CERT_FINGERPRINT_01 algorithm=EC256 firstType=SecIdentity publicKeysMatch=true signatureVerified=true
+[LocalSync] session.created peer=MAC_DEVICE fingerprint=CERT_FINGERPRINT_01 firstType=SecIdentity encryption=required delegateAttached=true
+[LocalSync] identity.validated peer=- fingerprint=CERT_FINGERPRINT_02 algorithm=EC256 firstType=SecIdentity publicKeysMatch=true signatureVerified=true
+[LocalSync] session.created peer=MAC_LOOPBACK fingerprint=CERT_FINGERPRINT_02 firstType=SecIdentity encryption=required delegateAttached=true
+[LocalSync] identity.validated peer=- fingerprint=CERT_FINGERPRINT_02 algorithm=EC256 firstType=SecIdentity publicKeysMatch=true signatureVerified=true
+[LocalSync] session.created peer=MAC_LOOPBACK fingerprint=CERT_FINGERPRINT_02 firstType=SecIdentity encryption=required delegateAttached=true
+[LocalSync] discovery.found peer=MAC_DEVICE fingerprint=- pairing=false
+[LocalSync] discovery.found peer=IPHONE_DEVICE fingerprint=- pairing=false
+[LocalSync] discovery.found peer=MAC_DEVICE fingerprint=- pairing=false
+[LocalSync] discovery.found peer=IPHONE_DEVICE fingerprint=- pairing=false
+[LocalSync] discovery.found peer=MAC_LOOPBACK fingerprint=- pairing=true
+[LocalSync] invitation.sent peer=MAC_LOOPBACK fingerprint=-
+[LocalSync] discovery.found peer=MAC_DEVICE fingerprint=- pairing=true
+[LocalSync] invitation.accepted peer=MAC_DEVICE fingerprint=-
+[LocalSync] session.state peer=MAC_DEVICE fingerprint=- 0->1 certificateCallback=false expected=true
+[LocalSync] session.state peer=MAC_LOOPBACK fingerprint=- 0->1 certificateCallback=false expected=true
+[LocalSync] session.state peer=MAC_DEVICE fingerprint=- 1->0 certificateCallback=false expected=true
+[LocalSync] session.state peer=MAC_LOOPBACK fingerprint=- 1->0 certificateCallback=false expected=true
+
+Mac MCSession: RSA success (final default identity path; matching codes verified in UI)
+[LocalSync] identity.validated peer=- fingerprint=CERT_FINGERPRINT_07 algorithm=RSA2048 firstType=SecIdentity publicKeysMatch=true signatureVerified=true
+[LocalSync] session.created peer=MAC_DEVICE fingerprint=CERT_FINGERPRINT_07 firstType=SecIdentity encryption=required delegateAttached=true
+[LocalSync] identity.validated peer=- fingerprint=CERT_FINGERPRINT_07 algorithm=RSA2048 firstType=SecIdentity publicKeysMatch=true signatureVerified=true
+[LocalSync] session.created peer=MAC_DEVICE fingerprint=CERT_FINGERPRINT_07 firstType=SecIdentity encryption=required delegateAttached=true
+[LocalSync] identity.validated peer=- fingerprint=CERT_FINGERPRINT_05 algorithm=RSA2048 firstType=SecIdentity publicKeysMatch=true signatureVerified=true
+[LocalSync] session.created peer=MAC_LOOPBACK fingerprint=CERT_FINGERPRINT_05 firstType=SecIdentity encryption=required delegateAttached=true
+[LocalSync] identity.validated peer=- fingerprint=CERT_FINGERPRINT_05 algorithm=RSA2048 firstType=SecIdentity publicKeysMatch=true signatureVerified=true
+[LocalSync] session.created peer=MAC_LOOPBACK fingerprint=CERT_FINGERPRINT_05 firstType=SecIdentity encryption=required delegateAttached=true
+[LocalSync] discovery.found peer=MAC_DEVICE fingerprint=- pairing=false
+[LocalSync] discovery.found peer=MAC_DEVICE fingerprint=- pairing=false
+[LocalSync] discovery.found peer=MAC_LOOPBACK fingerprint=- pairing=true
+[LocalSync] discovery.found peer=MAC_DEVICE fingerprint=- pairing=true
+[LocalSync] invitation.sent peer=MAC_LOOPBACK fingerprint=-
+[LocalSync] invitation.accepted peer=MAC_DEVICE fingerprint=-
+[LocalSync] session.state peer=MAC_DEVICE fingerprint=- notConnected->connecting certificateCallback=false expected=true
+[LocalSync] session.state peer=MAC_LOOPBACK fingerprint=- notConnected->connecting certificateCallback=false expected=true
+[LocalSync] certificate.callback peer=MAC_LOOPBACK fingerprint=CERT_FINGERPRINT_05 chainCount=1
+[LocalSync] certificate.accepted peer=MAC_LOOPBACK fingerprint=CERT_FINGERPRINT_05 reason=pairingCandidate
+[LocalSync] certificate.callback peer=MAC_DEVICE fingerprint=CERT_FINGERPRINT_07 chainCount=1
+[LocalSync] certificate.accepted peer=MAC_DEVICE fingerprint=CERT_FINGERPRINT_07 reason=pairingCandidate
+[LocalSync] session.state peer=MAC_LOOPBACK fingerprint=CERT_FINGERPRINT_05 connecting->connected certificateCallback=true expected=true
+[LocalSync] protocol.sent peer=MAC_LOOPBACK fingerprint=- kind=hello
+[LocalSync] session.state peer=MAC_DEVICE fingerprint=CERT_FINGERPRINT_07 connecting->connected certificateCallback=true expected=true
+[LocalSync] protocol.sent peer=MAC_DEVICE fingerprint=- kind=hello
+[LocalSync] protocol.received peer=MAC_DEVICE fingerprint=- kind=hello
+[LocalSync] pairing.codeDisplayed peer=MAC_DEVICE fingerprint=- workDataAllowed=false
+[LocalSync] protocol.received peer=MAC_LOOPBACK fingerprint=- kind=hello
+[LocalSync] pairing.codeDisplayed peer=MAC_LOOPBACK fingerprint=- workDataAllowed=false
+[LocalSync] discovery.found peer=IPHONE_DEVICE fingerprint=- pairing=false
+[LocalSync] discovery.found peer=IPHONE_DEVICE fingerprint=- pairing=false
+
+Physical Mac reverse invitation: RSA
+[LocalSync] identity.validated peer=- fingerprint=CERT_FINGERPRINT_07 algorithm=RSA2048 firstType=SecIdentity publicKeysMatch=true signatureVerified=true
+[LocalSync] session.created peer=MAC_DEVICE fingerprint=CERT_FINGERPRINT_07 firstType=SecIdentity encryption=required delegateAttached=true
+[LocalSync] identity.validated peer=- fingerprint=CERT_FINGERPRINT_07 algorithm=RSA2048 firstType=SecIdentity publicKeysMatch=true signatureVerified=true
+[LocalSync] session.created peer=MAC_DEVICE fingerprint=CERT_FINGERPRINT_07 firstType=SecIdentity encryption=required delegateAttached=true
+[LocalSync] discovery.found peer=MAC_DEVICE fingerprint=- pairing=false
+[LocalSync] invitation.accepted peer=IPHONE_DEVICE fingerprint=-
+[LocalSync] session.state peer=IPHONE_DEVICE fingerprint=- notConnected->connecting certificateCallback=false expected=true
+[LocalSync] discovery.found peer=IPHONE_DEVICE fingerprint=- pairing=false
+[LocalSync] session.state peer=IPHONE_DEVICE fingerprint=- connecting->notConnected certificateCallback=false expected=true
+[LocalSync] identity.validated peer=- fingerprint=CERT_FINGERPRINT_07 algorithm=RSA2048 firstType=SecIdentity publicKeysMatch=true signatureVerified=true
+[LocalSync] session.created peer=MAC_DEVICE fingerprint=CERT_FINGERPRINT_07 firstType=SecIdentity encryption=required delegateAttached=true
+
+Physical iPhone reverse invitation: RSA
+[LocalSync] identity.validated peer=- fingerprint=CERT_FINGERPRINT_03 algorithm=RSA2048 firstType=SecIdentity publicKeysMatch=true signatureVerified=true
+[LocalSync] session.created peer=IPHONE_DEVICE fingerprint=CERT_FINGERPRINT_03 firstType=SecIdentity encryption=required delegateAttached=true
+[LocalSync] identity.validated peer=- fingerprint=CERT_FINGERPRINT_03 algorithm=RSA2048 firstType=SecIdentity publicKeysMatch=true signatureVerified=true
+[LocalSync] session.created peer=IPHONE_DEVICE fingerprint=CERT_FINGERPRINT_03 firstType=SecIdentity encryption=required delegateAttached=true
+[LocalSync] discovery.found peer=MAC_DEVICE fingerprint=- pairing=false
+[LocalSync] discovery.found peer=MAC_DEVICE fingerprint=- pairing=true
+[LocalSync] invitation.sent peer=MAC_DEVICE fingerprint=-
+[LocalSync] session.state peer=MAC_DEVICE fingerprint=- notConnected->connecting certificateCallback=false expected=true
+[LocalSync] session.state peer=MAC_DEVICE fingerprint=- connecting->notConnected certificateCallback=false expected=true
+[LocalSync] identity.validated peer=- fingerprint=CERT_FINGERPRINT_03 algorithm=RSA2048 firstType=SecIdentity publicKeysMatch=true signatureVerified=true
+[LocalSync] session.created peer=IPHONE_DEVICE fingerprint=CERT_FINGERPRINT_03 firstType=SecIdentity encryption=required delegateAttached=true
+
+Normal Mac app: actual device identity
+[LocalSync] identity.validated peer=- fingerprint=CERT_FINGERPRINT_04 algorithm=RSA2048 firstType=SecIdentity publicKeysMatch=true signatureVerified=true
+[LocalSync] session.created peer=MAC_DEVICE fingerprint=CERT_FINGERPRINT_04 firstType=SecIdentity encryption=required delegateAttached=true
+
+Normal iPhone app: actual device identity
+[LocalSync] identity.validated peer=- fingerprint=CERT_FINGERPRINT_06 algorithm=RSA2048 firstType=SecIdentity publicKeysMatch=true signatureVerified=true
+[LocalSync] session.created peer=IPHONE_DEVICE fingerprint=CERT_FINGERPRINT_06 firstType=SecIdentity encryption=required delegateAttached=true

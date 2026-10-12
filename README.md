@@ -116,7 +116,7 @@ Calendar未選択の初回は活動時間のみの仮配置です。選択済み
 
 ## 検証
 
-2026-10-12、ローカル同期対応の全567ケース成功（既存524＋追加43）。macOS/iOS Simulatorビルド成功。合成peerで初回確認・承認・同期済み表示・解除確認のMac UIを操作確認しました。実Mac/iPhone間の無線通信・OS許可・初回ペアリングは未確認です。[検証範囲と実機手順](docs/LocalDeviceSync.md)を参照してください。
+2026-10-12、DTLS接続をRSA 2048 identityへ修正し、全570ケース成功。署名済みMac/iPhone実機ビルド成功。Mac内の実MCSessionでcertificate callback・connected・HELLO・確認コード生成を確認しました。Mac/iPhone間はテザリング環境でconnecting後に切断し、確認コード表示は未達です。[DTLS修正と実機検証範囲](docs/LocalSyncDTLS.md)、[ローカル同期仕様](docs/LocalDeviceSync.md)を参照してください。
 
 2026-10-12、5画面・稼働時間対応の全524ケース成功（既存505＋追加19）。macOS/iOS Simulatorビルド成功。合成データのMacアプリで追加・削除確認・待ちの期限補完と配置・今日の時間変更と即時再計算・設定の通常時間と日別上書きを操作確認しました。[実装報告](docs/FiveTabsActivityHours.md)を参照してください。iPhone/iPad実機確認は未実施です。
 

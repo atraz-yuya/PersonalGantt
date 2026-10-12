@@ -71,13 +71,38 @@ struct LocalSyncProtocolTests {
         let fresh = LocalHello(deviceID: a.deviceID, name: a.name, nonce: UUID(), pairing: true)
         #expect(code != LocalSyncEnvelope.pairingCode(local: fresh, localHash: hashA, remote: b, remoteHash: hashB))
     }
-    @Test @MainActor func deviceSpecificTLSCertificateHasMatchingPrivateKey() throws {
-        let attributes: [String: Any] = [kSecAttrKeyType as String: kSecAttrKeyTypeECSECPrimeRandom, kSecAttrKeySizeInBits as String: 256]
+    @Test(arguments: [false, true]) @MainActor func deviceSpecificTLSCertificateHasMatchingPrivateKey(rsa: Bool) throws {
+        let attributes: [String: Any] = [kSecAttrKeyType as String: rsa ? kSecAttrKeyTypeRSA : kSecAttrKeyTypeECSECPrimeRandom, kSecAttrKeySizeInBits as String: rsa ? 2048 : 256]
         let key = try #require(SecKeyCreateRandomKey(attributes as CFDictionary, nil))
         let certificate = try LocalSyncIdentity.makeCertificate(key: key, deviceID: localA)
-        #expect(SecIdentityCreate(nil, certificate, key) != nil)
+        let identity = try #require(SecIdentityCreate(nil, certificate, key))
+        #expect(try LocalSyncIdentity.validate(identity) == Data(SHA256.hash(data: SecCertificateCopyData(certificate) as Data)))
+        let values = try LocalSyncIdentity.securityIdentity(identity)
+        #expect(values.count == 1 && CFGetTypeID(values[0] as CFTypeRef) == SecIdentityGetTypeID())
+        let wrongKey = try #require(SecKeyCreateRandomKey(attributes as CFDictionary, nil))
+        #expect(SecIdentityCreate(nil, certificate, wrongKey) == nil)
         let second = try LocalSyncIdentity.makeCertificate(key: key, deviceID: localB)
         #expect(SecCertificateCopyData(certificate) as Data != SecCertificateCopyData(second) as Data)
+    }
+}
+
+struct LocalCertificateDecisionTests {
+    @Test func initialPairingAcceptsOnlyKnownPairingCandidates() {
+        let peer = LocalPeer(id: localB, name: "iPhone", pairing: true)
+        #expect(LocalCertificateDecision.evaluate(hash: hashB, peer: peer, expected: false, anotherPeerExpected: false, pairing: true, trusted: nil) == .pairingCandidate)
+        #expect(LocalCertificateDecision.evaluate(hash: hashB, peer: nil, expected: false, anotherPeerExpected: false, pairing: true, trusted: nil) == .unknownPeer)
+        #expect(LocalCertificateDecision.evaluate(hash: hashB, peer: peer, expected: false, anotherPeerExpected: true, pairing: true, trusted: nil) == .unexpectedPeer)
+        #expect(LocalCertificateDecision.evaluate(hash: hashB, peer: peer, expected: true, anotherPeerExpected: false, pairing: false, trusted: nil) == .notPairing)
+        #expect(LocalCertificateDecision.evaluate(hash: nil, peer: peer, expected: true, anotherPeerExpected: false, pairing: true, trusted: nil) == .missingCertificate)
+        #expect(LocalCertificateDecision.evaluate(hash: hashB, peer: LocalPeer(id: localB, name: "iPhone", pairing: false), expected: true, anotherPeerExpected: false, pairing: true, trusted: nil) == .notPairing)
+    }
+    @Test func existingTrustAlwaysRequiresFingerprintAndExpectedDeviceEvenDuringPairing() {
+        let trust = LocalTrustedDevice(deviceID: localB, name: "iPhone", certificateHash: hashB, pairedAt: Date())
+        let peer = LocalPeer(id: localB, name: "iPhone", pairing: true)
+        #expect(LocalCertificateDecision.evaluate(hash: hashB, peer: peer, expected: true, anotherPeerExpected: false, pairing: true, trusted: trust) == .trustedFingerprint)
+        #expect(LocalCertificateDecision.evaluate(hash: hashA, peer: peer, expected: true, anotherPeerExpected: false, pairing: true, trusted: trust) == .fingerprintMismatch)
+        #expect(LocalCertificateDecision.evaluate(hash: hashB, peer: peer, expected: false, anotherPeerExpected: false, pairing: true, trusted: trust) == .unexpectedPeer)
+        #expect(LocalCertificateDecision.evaluate(hash: hashB, peer: LocalPeer(id: localA, name: "iPhone", pairing: true), expected: true, anotherPeerExpected: false, pairing: true, trusted: trust) == .unexpectedPeer)
     }
 }
 

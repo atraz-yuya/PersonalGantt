@@ -10,7 +10,7 @@ nonisolated enum LocalSyncConstants {
     static let rememberedMessages = 256
 }
 nonisolated enum LocalSyncError: LocalizedError, Equatable {
-    case offline, version, invalidData, tooLarge, untrusted, storage, timeout, network
+    case offline, version, invalidData, tooLarge, untrusted, storage, timeout, network, identityUpgrade
     var errorDescription: String? {
         switch self {
         case .offline: "相手が見つかりません。両端末でPersonalGanttを開いてください。"
@@ -21,6 +21,7 @@ nonisolated enum LocalSyncError: LocalizedError, Equatable {
         case .storage: "同期データを保存できません。端末内の保存状態を確認してください。"
         case .timeout: "同期の確認応答がありません。編集を保持し、次の接続で再試行します。"
         case .network: "ローカル同期に接続できません。Wi-Fiとローカルネットワークの許可を確認してください。"
+        case .identityUpgrade: "同期証明書の更新が必要です。両端末のPersonalGanttを更新し、設定でペアリングを解除してから再登録してください。作業データは保持されます。"
         }
     }
 }
