@@ -35,7 +35,7 @@ struct ReminderSelectionView: View {
                 }
                 Text("選んだリストのタスクを読み込み、完了／未完了を同期します。OSのアクセス許可は読み書き一括です。")
                     .font(.caption).foregroundStyle(.secondary)
-                Text("所要時間と締切の補完値は、この端末のPersonalGanttに保存します。")
+                Text("所要時間・補助締切・配置対象外の設定はPersonalGanttに保存します。端末間の同期が有効なら、同じReminderの設定を同期します。")
                     .font(.caption).foregroundStyle(.secondary)
             }
             if model.authorization == .fullAccess {

@@ -1,0 +1,209 @@
+実機Macの通常アプリPID 32160/32722/33003/33056だけを抽出。xctest hostのログを除外。
+peer名・端末UUID・fingerprintを置換。秘密情報・Reminder/Task本文・payloadなし。
+時刻は取得元の表示のまま。通信ログはREADY/保存後ACK/同期成功を示す。
+Reminder設定の値・件数・削除はMac UIとユーザーのiPhone確認が証拠。
+
+2026-10-13 03:54:29.369 Db PersonalGantt[32160:717b7] [com.atraz.PersonalGantt:LocalSync] [LocalSync] identity.validated peer=- fingerprint=MAC_PIN algorithm=RSA2048 firstType=SecIdentity publicKeysMatch=true signatureVerified=true
+2026-10-13 03:54:29.469 Db PersonalGantt[32160:717b7] [com.atraz.PersonalGantt:LocalSync] [LocalSync] identity.validated peer=- fingerprint=MAC_PIN algorithm=RSA2048 firstType=SecIdentity publicKeysMatch=true signatureVerified=true
+2026-10-13 03:55:05.780 Db PersonalGantt[32160:71a0c] [com.atraz.PersonalGantt:LocalSync] [LocalSync] network.path peer=- fingerprint=- status=satisfied interfaces=en0:wifi,en0:wifi includePeerToPeer=true
+2026-10-13 03:55:05.854 Db PersonalGantt[32160:717b7] [com.atraz.PersonalGantt:LocalSync] [LocalSync] network.certificate.callback peer=IPHONE_DEVICE fingerprint=IPHONE_PIN accept=true reason=trustedFingerprint outgoing=true
+2026-10-13 03:55:05.862 Db PersonalGantt[32160:717b7] [com.atraz.PersonalGantt:LocalSync] [LocalSync] network.connection.connected peer=IPHONE fingerprint=IPHONE_PIN id=IPHONE_DEVICE mutualTLS=true
+2026-10-13 03:55:05.862 Db PersonalGantt[32160:717b7] [com.atraz.PersonalGantt:LocalSync] [LocalSync] transport.winner peer=IPHONE fingerprint=IPHONE_PIN id=IPHONE_DEVICE route=network
+2026-10-13 03:55:05.862 Db PersonalGantt[32160:717b7] [com.atraz.PersonalGantt:LocalSync] [LocalSync] protocol.sent peer=IPHONE fingerprint=- kind=hello
+2026-10-13 03:55:05.863 Db PersonalGantt[32160:717b7] [com.atraz.PersonalGantt:LocalSync] [LocalSync] protocol.received peer=IPHONE fingerprint=- kind=hello
+2026-10-13 03:55:05.863 Db PersonalGantt[32160:717b7] [com.atraz.PersonalGantt:LocalSync] [LocalSync] protocol.sent peer=IPHONE fingerprint=- kind=ready
+2026-10-13 03:55:05.863 Db PersonalGantt[32160:717b7] [com.atraz.PersonalGantt:LocalSync] [LocalSync] protocol.received peer=IPHONE fingerprint=- kind=ready
+2026-10-13 03:55:06.602 Db PersonalGantt[32160:717b7] [com.atraz.PersonalGantt:LocalSync] [LocalSync] sync.start peer=IPHONE fingerprint=-
+2026-10-13 03:55:06.970 Db PersonalGantt[32160:717b7] [com.atraz.PersonalGantt:LocalSync] [LocalSync] protocol.received peer=IPHONE fingerprint=- kind=records
+2026-10-13 03:55:08.472 Db PersonalGantt[32160:717b7] [com.atraz.PersonalGantt:LocalSync] [LocalSync] protocol.sent peer=IPHONE fingerprint=- kind=ack
+2026-10-13 03:55:08.625 Db PersonalGantt[32160:717b7] [com.atraz.PersonalGantt:LocalSync] [LocalSync] protocol.received peer=IPHONE fingerprint=- kind=ack
+2026-10-13 03:55:09.898 Db PersonalGantt[32160:717b7] [com.atraz.PersonalGantt:LocalSync] [LocalSync] sync.success peer=IPHONE fingerprint=-
+2026-10-13 03:55:19.232 Db PersonalGantt[32160:717db] [com.atraz.PersonalGantt:LocalSync] [LocalSync] network.path peer=- fingerprint=- status=satisfied interfaces=en0:wifi,en0:wifi includePeerToPeer=true
+2026-10-13 03:55:43.407 Db PersonalGantt[32160:717db] [com.atraz.PersonalGantt:LocalSync] [LocalSync] network.path peer=- fingerprint=- status=satisfied interfaces=en0:wifi,en0:wifi includePeerToPeer=true
+2026-10-13 03:55:51.832 Db PersonalGantt[32160:717b7] [com.atraz.PersonalGantt:LocalSync] [LocalSync] network.connection.timeout peer=- fingerprint=-
+2026-10-13 03:55:57.801 Db PersonalGantt[32160:717b7] [com.atraz.PersonalGantt:LocalSync] [LocalSync] transport.connection.timeout peer=- fingerprint=-
+2026-10-13 03:56:13.214 Db PersonalGantt[32160:717b7] [com.atraz.PersonalGantt:LocalSync] [LocalSync] identity.validated peer=- fingerprint=MAC_PIN algorithm=RSA2048 firstType=SecIdentity publicKeysMatch=true signatureVerified=true
+2026-10-13 03:56:13.228 Db PersonalGantt[32160:717b7] [com.atraz.PersonalGantt:LocalSync] [LocalSync] identity.validated peer=- fingerprint=MAC_PIN algorithm=RSA2048 firstType=SecIdentity publicKeysMatch=true signatureVerified=true
+2026-10-13 03:56:16.068 Db PersonalGantt[32160:71ced] [com.atraz.PersonalGantt:LocalSync] [LocalSync] network.path peer=- fingerprint=- status=satisfied interfaces=en0:wifi,en0:wifi includePeerToPeer=true
+2026-10-13 03:56:16.526 Db PersonalGantt[32160:717b7] [com.atraz.PersonalGantt:LocalSync] [LocalSync] network.certificate.callback peer=IPHONE_DEVICE fingerprint=IPHONE_PIN accept=true reason=trustedFingerprint outgoing=true
+2026-10-13 03:56:16.532 Db PersonalGantt[32160:717b7] [com.atraz.PersonalGantt:LocalSync] [LocalSync] network.connection.connected peer=IPHONE fingerprint=IPHONE_PIN id=IPHONE_DEVICE mutualTLS=true
+2026-10-13 03:56:16.533 Db PersonalGantt[32160:717b7] [com.atraz.PersonalGantt:LocalSync] [LocalSync] transport.winner peer=IPHONE fingerprint=IPHONE_PIN id=IPHONE_DEVICE route=network
+2026-10-13 03:56:16.533 Db PersonalGantt[32160:717b7] [com.atraz.PersonalGantt:LocalSync] [LocalSync] protocol.sent peer=IPHONE fingerprint=- kind=hello
+2026-10-13 03:56:16.534 Db PersonalGantt[32160:717b7] [com.atraz.PersonalGantt:LocalSync] [LocalSync] protocol.received peer=IPHONE fingerprint=- kind=hello
+2026-10-13 03:56:16.534 Db PersonalGantt[32160:717b7] [com.atraz.PersonalGantt:LocalSync] [LocalSync] protocol.sent peer=IPHONE fingerprint=- kind=ready
+2026-10-13 03:56:16.534 Db PersonalGantt[32160:717b7] [com.atraz.PersonalGantt:LocalSync] [LocalSync] protocol.received peer=IPHONE fingerprint=- kind=ready
+2026-10-13 03:56:17.268 Db PersonalGantt[32160:717b7] [com.atraz.PersonalGantt:LocalSync] [LocalSync] sync.start peer=IPHONE fingerprint=-
+2026-10-13 03:56:17.673 Db PersonalGantt[32160:717b7] [com.atraz.PersonalGantt:LocalSync] [LocalSync] protocol.received peer=IPHONE fingerprint=- kind=records
+2026-10-13 03:56:19.196 Db PersonalGantt[32160:717b7] [com.atraz.PersonalGantt:LocalSync] [LocalSync] protocol.sent peer=IPHONE fingerprint=- kind=ack
+2026-10-13 03:56:19.280 Db PersonalGantt[32160:717b7] [com.atraz.PersonalGantt:LocalSync] [LocalSync] protocol.received peer=IPHONE fingerprint=- kind=ack
+2026-10-13 03:56:20.517 Db PersonalGantt[32160:717b7] [com.atraz.PersonalGantt:LocalSync] [LocalSync] sync.success peer=IPHONE fingerprint=-
+2026-10-13 03:56:42.923 Db PersonalGantt[32160:717b7] [com.atraz.PersonalGantt:LocalSync] [LocalSync] protocol.received peer=IPHONE fingerprint=- kind=records
+2026-10-13 03:56:44.326 Db PersonalGantt[32160:717b7] [com.atraz.PersonalGantt:LocalSync] [LocalSync] protocol.sent peer=IPHONE fingerprint=- kind=ack
+2026-10-13 03:56:52.870 Db PersonalGantt[32160:717b7] [com.atraz.PersonalGantt:LocalSync] [LocalSync] protocol.received peer=IPHONE fingerprint=- kind=records
+2026-10-13 03:56:54.274 Db PersonalGantt[32160:717b7] [com.atraz.PersonalGantt:LocalSync] [LocalSync] protocol.sent peer=IPHONE fingerprint=- kind=ack
+2026-10-13 03:57:34.445 Db PersonalGantt[32160:71f9f] [com.atraz.PersonalGantt:LocalSync] [LocalSync] network.path peer=- fingerprint=- status=satisfied interfaces=en0:wifi,en0:wifi includePeerToPeer=true
+2026-10-13 03:57:47.289 Db PersonalGantt[32160:717b7] [com.atraz.PersonalGantt:LocalSync] [LocalSync] sync.start peer=IPHONE fingerprint=-
+2026-10-13 03:57:49.089 Db PersonalGantt[32160:717b7] [com.atraz.PersonalGantt:LocalSync] [LocalSync] protocol.received peer=IPHONE fingerprint=- kind=ack
+2026-10-13 03:57:50.491 Db PersonalGantt[32160:717b7] [com.atraz.PersonalGantt:LocalSync] [LocalSync] sync.success peer=IPHONE fingerprint=-
+2026-10-13 03:58:47.547 Db PersonalGantt[32160:722a9] [com.atraz.PersonalGantt:LocalSync] [LocalSync] network.path peer=- fingerprint=- status=satisfied interfaces=en0:wifi,en0:wifi includePeerToPeer=true
+2026-10-13 03:58:55.737 Db PersonalGantt[32160:717b7] [com.atraz.PersonalGantt:LocalSync] [LocalSync] network.connection.timeout peer=- fingerprint=-
+2026-10-13 03:59:01.820 Db PersonalGantt[32160:717b7] [com.atraz.PersonalGantt:LocalSync] [LocalSync] transport.connection.timeout peer=- fingerprint=-
+2026-10-13 03:59:17.553 Db PersonalGantt[32160:717b7] [com.atraz.PersonalGantt:LocalSync] [LocalSync] identity.validated peer=- fingerprint=MAC_PIN algorithm=RSA2048 firstType=SecIdentity publicKeysMatch=true signatureVerified=true
+2026-10-13 03:59:17.590 Db PersonalGantt[32160:717b7] [com.atraz.PersonalGantt:LocalSync] [LocalSync] identity.validated peer=- fingerprint=MAC_PIN algorithm=RSA2048 firstType=SecIdentity publicKeysMatch=true signatureVerified=true
+2026-10-13 03:59:22.995 Db PersonalGantt[32160:72340] [com.atraz.PersonalGantt:LocalSync] [LocalSync] certificate.callback peer=IPHONE fingerprint=IPHONE_PIN chainCount=1
+2026-10-13 03:59:23.022 Db PersonalGantt[32160:717b7] [com.atraz.PersonalGantt:LocalSync] [LocalSync] transport.winner peer=IPHONE fingerprint=IPHONE_PIN id=IPHONE_DEVICE route=multipeer
+2026-10-13 03:59:23.023 Db PersonalGantt[32160:717b7] [com.atraz.PersonalGantt:LocalSync] [LocalSync] protocol.sent peer=IPHONE fingerprint=- kind=hello
+2026-10-13 03:59:23.023 Db PersonalGantt[32160:717b7] [com.atraz.PersonalGantt:LocalSync] [LocalSync] protocol.received peer=IPHONE fingerprint=- kind=hello
+2026-10-13 03:59:23.024 Db PersonalGantt[32160:717b7] [com.atraz.PersonalGantt:LocalSync] [LocalSync] protocol.sent peer=IPHONE fingerprint=- kind=ready
+2026-10-13 03:59:23.024 Db PersonalGantt[32160:717b7] [com.atraz.PersonalGantt:LocalSync] [LocalSync] protocol.received peer=IPHONE fingerprint=- kind=ready
+2026-10-13 03:59:23.733 Db PersonalGantt[32160:717b7] [com.atraz.PersonalGantt:LocalSync] [LocalSync] sync.start peer=IPHONE fingerprint=-
+2026-10-13 03:59:24.832 Db PersonalGantt[32160:717b7] [com.atraz.PersonalGantt:LocalSync] [LocalSync] protocol.received peer=IPHONE fingerprint=- kind=records
+2026-10-13 03:59:27.692 Db PersonalGantt[32160:717b7] [com.atraz.PersonalGantt:LocalSync] [LocalSync] protocol.sent peer=IPHONE fingerprint=- kind=ack
+2026-10-13 03:59:27.859 Db PersonalGantt[32160:717b7] [com.atraz.PersonalGantt:LocalSync] [LocalSync] protocol.received peer=IPHONE fingerprint=- kind=ack
+2026-10-13 03:59:30.131 Db PersonalGantt[32160:717b7] [com.atraz.PersonalGantt:LocalSync] [LocalSync] protocol.received peer=IPHONE fingerprint=- kind=records
+2026-10-13 03:59:32.560 Db PersonalGantt[32160:717b7] [com.atraz.PersonalGantt:LocalSync] [LocalSync] protocol.sent peer=IPHONE fingerprint=- kind=ack
+2026-10-13 03:59:32.560 Db PersonalGantt[32160:717b7] [com.atraz.PersonalGantt:LocalSync] [LocalSync] sync.success peer=IPHONE fingerprint=-
+2026-10-13 03:59:54.703 Db PersonalGantt[32160:717b7] [com.atraz.PersonalGantt:LocalSync] [LocalSync] sync.start peer=IPHONE fingerprint=-
+2026-10-13 03:59:56.530 Db PersonalGantt[32160:717b7] [com.atraz.PersonalGantt:LocalSync] [LocalSync] protocol.received peer=IPHONE fingerprint=- kind=ack
+2026-10-13 03:59:57.927 Db PersonalGantt[32160:717b7] [com.atraz.PersonalGantt:LocalSync] [LocalSync] sync.success peer=IPHONE fingerprint=-
+2026-10-13 04:00:06.763 Db PersonalGantt[32160:717b7] [com.atraz.PersonalGantt:LocalSync] [LocalSync] sync.start peer=IPHONE fingerprint=-
+2026-10-13 04:00:08.192 Db PersonalGantt[32160:717b7] [com.atraz.PersonalGantt:LocalSync] [LocalSync] protocol.received peer=IPHONE fingerprint=- kind=ack
+2026-10-13 04:00:09.692 Db PersonalGantt[32160:717b7] [com.atraz.PersonalGantt:LocalSync] [LocalSync] sync.success peer=IPHONE fingerprint=-
+2026-10-13 04:00:11.094 Db PersonalGantt[32160:717b7] [com.atraz.PersonalGantt:LocalSync] [LocalSync] sync.start peer=IPHONE fingerprint=-
+2026-10-13 04:00:12.497 Db PersonalGantt[32160:717b7] [com.atraz.PersonalGantt:LocalSync] [LocalSync] protocol.received peer=IPHONE fingerprint=- kind=ack
+2026-10-13 04:00:13.762 Db PersonalGantt[32160:717b7] [com.atraz.PersonalGantt:LocalSync] [LocalSync] sync.success peer=IPHONE fingerprint=-
+2026-10-13 04:00:41.095 Db PersonalGantt[32160:717b7] [com.atraz.PersonalGantt:LocalSync] [LocalSync] sync.start peer=IPHONE fingerprint=-
+2026-10-13 04:00:42.732 Db PersonalGantt[32160:717b7] [com.atraz.PersonalGantt:LocalSync] [LocalSync] protocol.received peer=IPHONE fingerprint=- kind=ack
+2026-10-13 04:00:43.961 Db PersonalGantt[32160:717b7] [com.atraz.PersonalGantt:LocalSync] [LocalSync] sync.success peer=IPHONE fingerprint=-
+2026-10-13 04:00:58.533 Db PersonalGantt[32160:717b7] [com.atraz.PersonalGantt:LocalSync] [LocalSync] sync.start peer=IPHONE fingerprint=-
+2026-10-13 04:00:59.913 Db PersonalGantt[32160:717b7] [com.atraz.PersonalGantt:LocalSync] [LocalSync] protocol.received peer=IPHONE fingerprint=- kind=ack
+2026-10-13 04:01:00.994 Db PersonalGantt[32160:717b7] [com.atraz.PersonalGantt:LocalSync] [LocalSync] sync.success peer=IPHONE fingerprint=-
+2026-10-13 04:01:03.909 Db PersonalGantt[32160:717b7] [com.atraz.PersonalGantt:LocalSync] [LocalSync] sync.start peer=IPHONE fingerprint=-
+2026-10-13 04:01:05.273 Db PersonalGantt[32160:717b7] [com.atraz.PersonalGantt:LocalSync] [LocalSync] protocol.received peer=IPHONE fingerprint=- kind=ack
+2026-10-13 04:01:06.388 Db PersonalGantt[32160:717b7] [com.atraz.PersonalGantt:LocalSync] [LocalSync] sync.success peer=IPHONE fingerprint=-
+2026-10-13 04:01:48.786 Db PersonalGantt[32160:717b7] [com.atraz.PersonalGantt:LocalSync] [LocalSync] transport.connection.timeout peer=- fingerprint=-
+2026-10-13 04:02:04.809 Db PersonalGantt[32160:717b7] [com.atraz.PersonalGantt:LocalSync] [LocalSync] identity.validated peer=- fingerprint=MAC_PIN algorithm=RSA2048 firstType=SecIdentity publicKeysMatch=true signatureVerified=true
+2026-10-13 04:02:04.848 Db PersonalGantt[32160:717b7] [com.atraz.PersonalGantt:LocalSync] [LocalSync] identity.validated peer=- fingerprint=MAC_PIN algorithm=RSA2048 firstType=SecIdentity publicKeysMatch=true signatureVerified=true
+2026-10-13 04:05:35.464 Db PersonalGantt[32722:74267] [com.atraz.PersonalGantt:LocalSync] [LocalSync] identity.validated peer=- fingerprint=MAC_PIN algorithm=RSA2048 firstType=SecIdentity publicKeysMatch=true signatureVerified=true
+2026-10-13 04:05:35.575 Db PersonalGantt[32722:74267] [com.atraz.PersonalGantt:LocalSync] [LocalSync] identity.validated peer=- fingerprint=MAC_PIN algorithm=RSA2048 firstType=SecIdentity publicKeysMatch=true signatureVerified=true
+2026-10-13 04:06:38.043 Db PersonalGantt[32722:74607] [com.atraz.PersonalGantt:LocalSync] [LocalSync] network.path peer=- fingerprint=- status=satisfied interfaces=en0:wifi,en0:wifi includePeerToPeer=true
+2026-10-13 04:06:38.347 Db PersonalGantt[32722:74267] [com.atraz.PersonalGantt:LocalSync] [LocalSync] network.certificate.callback peer=IPHONE_DEVICE fingerprint=IPHONE_PIN accept=true reason=trustedFingerprint outgoing=true
+2026-10-13 04:06:38.355 Db PersonalGantt[32722:74267] [com.atraz.PersonalGantt:LocalSync] [LocalSync] network.connection.connected peer=IPHONE fingerprint=IPHONE_PIN id=IPHONE_DEVICE mutualTLS=true
+2026-10-13 04:06:38.356 Db PersonalGantt[32722:74267] [com.atraz.PersonalGantt:LocalSync] [LocalSync] transport.winner peer=IPHONE fingerprint=IPHONE_PIN id=IPHONE_DEVICE route=network
+2026-10-13 04:06:38.359 Db PersonalGantt[32722:74267] [com.atraz.PersonalGantt:LocalSync] [LocalSync] protocol.sent peer=IPHONE fingerprint=- kind=hello
+2026-10-13 04:06:38.361 Db PersonalGantt[32722:74267] [com.atraz.PersonalGantt:LocalSync] [LocalSync] protocol.received peer=IPHONE fingerprint=- kind=hello
+2026-10-13 04:06:38.361 Db PersonalGantt[32722:74267] [com.atraz.PersonalGantt:LocalSync] [LocalSync] protocol.sent peer=IPHONE fingerprint=- kind=ready
+2026-10-13 04:06:38.362 Db PersonalGantt[32722:74267] [com.atraz.PersonalGantt:LocalSync] [LocalSync] protocol.received peer=IPHONE fingerprint=- kind=ready
+2026-10-13 04:06:39.078 Db PersonalGantt[32722:74267] [com.atraz.PersonalGantt:LocalSync] [LocalSync] sync.start peer=IPHONE fingerprint=-
+2026-10-13 04:06:41.083 Db PersonalGantt[32722:74267] [com.atraz.PersonalGantt:LocalSync] [LocalSync] protocol.received peer=IPHONE fingerprint=- kind=records
+2026-10-13 04:06:42.421 Db PersonalGantt[32722:74267] [com.atraz.PersonalGantt:LocalSync] [LocalSync] protocol.sent peer=IPHONE fingerprint=- kind=ack
+2026-10-13 04:06:42.537 Db PersonalGantt[32722:74267] [com.atraz.PersonalGantt:LocalSync] [LocalSync] protocol.received peer=IPHONE fingerprint=- kind=ack
+2026-10-13 04:06:43.736 Db PersonalGantt[32722:74267] [com.atraz.PersonalGantt:LocalSync] [LocalSync] sync.success peer=- fingerprint=-
+2026-10-13 04:06:59.500 Db PersonalGantt[32722:74267] [com.atraz.PersonalGantt:LocalSync] [LocalSync] identity.validated peer=- fingerprint=MAC_PIN algorithm=RSA2048 firstType=SecIdentity publicKeysMatch=true signatureVerified=true
+2026-10-13 04:06:59.541 Db PersonalGantt[32722:74267] [com.atraz.PersonalGantt:LocalSync] [LocalSync] identity.validated peer=- fingerprint=MAC_PIN algorithm=RSA2048 firstType=SecIdentity publicKeysMatch=true signatureVerified=true
+2026-10-13 04:09:21.016 Db PersonalGantt[32722:75211] [com.atraz.PersonalGantt:LocalSync] [LocalSync] network.path peer=- fingerprint=- status=satisfied interfaces=en0:wifi,en0:wifi includePeerToPeer=true
+2026-10-13 04:09:21.076 Db PersonalGantt[32722:74267] [com.atraz.PersonalGantt:LocalSync] [LocalSync] network.certificate.callback peer=IPHONE_DEVICE fingerprint=IPHONE_PIN accept=true reason=trustedFingerprint outgoing=true
+2026-10-13 04:09:21.081 Db PersonalGantt[32722:74267] [com.atraz.PersonalGantt:LocalSync] [LocalSync] network.connection.connected peer=IPHONE fingerprint=IPHONE_PIN id=IPHONE_DEVICE mutualTLS=true
+2026-10-13 04:09:21.081 Db PersonalGantt[32722:74267] [com.atraz.PersonalGantt:LocalSync] [LocalSync] transport.winner peer=IPHONE fingerprint=IPHONE_PIN id=IPHONE_DEVICE route=network
+2026-10-13 04:09:21.082 Db PersonalGantt[32722:74267] [com.atraz.PersonalGantt:LocalSync] [LocalSync] protocol.sent peer=IPHONE fingerprint=- kind=hello
+2026-10-13 04:09:21.087 Db PersonalGantt[32722:74267] [com.atraz.PersonalGantt:LocalSync] [LocalSync] protocol.received peer=IPHONE fingerprint=- kind=hello
+2026-10-13 04:09:21.087 Db PersonalGantt[32722:74267] [com.atraz.PersonalGantt:LocalSync] [LocalSync] protocol.sent peer=IPHONE fingerprint=- kind=ready
+2026-10-13 04:09:21.087 Db PersonalGantt[32722:74267] [com.atraz.PersonalGantt:LocalSync] [LocalSync] protocol.received peer=IPHONE fingerprint=- kind=ready
+2026-10-13 04:09:21.091 Db PersonalGantt[32722:74267] [com.atraz.PersonalGantt:LocalSync] [LocalSync] sync.start peer=IPHONE fingerprint=-
+2026-10-13 04:09:22.529 Db PersonalGantt[32722:74267] [com.atraz.PersonalGantt:LocalSync] [LocalSync] protocol.received peer=IPHONE fingerprint=- kind=ack
+2026-10-13 04:09:23.415 Db PersonalGantt[32722:74267] [com.atraz.PersonalGantt:LocalSync] [LocalSync] sync.success peer=IPHONE fingerprint=-
+2026-10-13 04:09:23.416 Db PersonalGantt[32722:74267] [com.atraz.PersonalGantt:LocalSync] [LocalSync] protocol.received peer=IPHONE fingerprint=- kind=records
+2026-10-13 04:09:24.561 Db PersonalGantt[32722:74267] [com.atraz.PersonalGantt:LocalSync] [LocalSync] protocol.sent peer=IPHONE fingerprint=- kind=ack
+2026-10-13 04:09:46.987 Db PersonalGantt[32722:752b9] [com.atraz.PersonalGantt:LocalSync] [LocalSync] network.path peer=- fingerprint=- status=satisfied interfaces=en0:wifi,en0:wifi includePeerToPeer=true
+2026-10-13 04:09:55.528 Db PersonalGantt[32722:74267] [com.atraz.PersonalGantt:LocalSync] [LocalSync] network.connection.timeout peer=- fingerprint=-
+2026-10-13 04:10:01.739 Db PersonalGantt[32722:74267] [com.atraz.PersonalGantt:LocalSync] [LocalSync] transport.connection.timeout peer=- fingerprint=-
+2026-10-13 04:10:17.008 Db PersonalGantt[32722:74267] [com.atraz.PersonalGantt:LocalSync] [LocalSync] identity.validated peer=- fingerprint=MAC_PIN algorithm=RSA2048 firstType=SecIdentity publicKeysMatch=true signatureVerified=true
+2026-10-13 04:10:17.038 Db PersonalGantt[32722:74267] [com.atraz.PersonalGantt:LocalSync] [LocalSync] identity.validated peer=- fingerprint=MAC_PIN algorithm=RSA2048 firstType=SecIdentity publicKeysMatch=true signatureVerified=true
+2026-10-13 04:12:32.835 Db PersonalGantt[32722:756d5] [com.atraz.PersonalGantt:LocalSync] [LocalSync] network.path peer=- fingerprint=- status=satisfied interfaces=en0:wifi,en0:wifi includePeerToPeer=true
+2026-10-13 04:12:33.461 Db PersonalGantt[32722:74267] [com.atraz.PersonalGantt:LocalSync] [LocalSync] network.certificate.callback peer=IPHONE_DEVICE fingerprint=IPHONE_PIN accept=true reason=trustedFingerprint outgoing=true
+2026-10-13 04:12:33.467 Db PersonalGantt[32722:74267] [com.atraz.PersonalGantt:LocalSync] [LocalSync] network.connection.connected peer=IPHONE fingerprint=IPHONE_PIN id=IPHONE_DEVICE mutualTLS=true
+2026-10-13 04:12:33.467 Db PersonalGantt[32722:74267] [com.atraz.PersonalGantt:LocalSync] [LocalSync] transport.winner peer=IPHONE fingerprint=IPHONE_PIN id=IPHONE_DEVICE route=network
+2026-10-13 04:12:33.468 Db PersonalGantt[32722:74267] [com.atraz.PersonalGantt:LocalSync] [LocalSync] protocol.sent peer=IPHONE fingerprint=- kind=hello
+2026-10-13 04:12:33.471 Db PersonalGantt[32722:74267] [com.atraz.PersonalGantt:LocalSync] [LocalSync] protocol.received peer=IPHONE fingerprint=- kind=hello
+2026-10-13 04:12:33.471 Db PersonalGantt[32722:74267] [com.atraz.PersonalGantt:LocalSync] [LocalSync] protocol.sent peer=IPHONE fingerprint=- kind=ready
+2026-10-13 04:12:33.477 Db PersonalGantt[32722:74267] [com.atraz.PersonalGantt:LocalSync] [LocalSync] protocol.received peer=IPHONE fingerprint=- kind=ready
+2026-10-13 04:12:33.481 Db PersonalGantt[32722:74267] [com.atraz.PersonalGantt:LocalSync] [LocalSync] sync.start peer=IPHONE fingerprint=-
+2026-10-13 04:12:34.860 Db PersonalGantt[32722:74267] [com.atraz.PersonalGantt:LocalSync] [LocalSync] protocol.received peer=IPHONE fingerprint=- kind=ack
+2026-10-13 04:12:35.742 Db PersonalGantt[32722:74267] [com.atraz.PersonalGantt:LocalSync] [LocalSync] sync.success peer=IPHONE fingerprint=-
+2026-10-13 04:12:35.743 Db PersonalGantt[32722:74267] [com.atraz.PersonalGantt:LocalSync] [LocalSync] protocol.received peer=IPHONE fingerprint=- kind=records
+2026-10-13 04:12:36.855 Db PersonalGantt[32722:74267] [com.atraz.PersonalGantt:LocalSync] [LocalSync] protocol.sent peer=IPHONE fingerprint=- kind=ack
+2026-10-13 04:12:55.912 Db PersonalGantt[32722:756d5] [com.atraz.PersonalGantt:LocalSync] [LocalSync] network.path peer=- fingerprint=- status=satisfied interfaces=en0:wifi,en0:wifi includePeerToPeer=true
+2026-10-13 04:13:04.217 Db PersonalGantt[32722:74267] [com.atraz.PersonalGantt:LocalSync] [LocalSync] network.connection.timeout peer=- fingerprint=-
+2026-10-13 04:13:10.819 Db PersonalGantt[32722:74267] [com.atraz.PersonalGantt:LocalSync] [LocalSync] transport.connection.timeout peer=- fingerprint=-
+2026-10-13 04:13:26.822 Db PersonalGantt[32722:74267] [com.atraz.PersonalGantt:LocalSync] [LocalSync] identity.validated peer=- fingerprint=MAC_PIN algorithm=RSA2048 firstType=SecIdentity publicKeysMatch=true signatureVerified=true
+2026-10-13 04:13:26.863 Db PersonalGantt[32722:74267] [com.atraz.PersonalGantt:LocalSync] [LocalSync] identity.validated peer=- fingerprint=MAC_PIN algorithm=RSA2048 firstType=SecIdentity publicKeysMatch=true signatureVerified=true
+2026-10-13 04:13:57.055 Db PersonalGantt[32722:75ca3] [com.atraz.PersonalGantt:LocalSync] [LocalSync] network.path peer=- fingerprint=- status=satisfied interfaces=en0:wifi,en0:wifi includePeerToPeer=true
+2026-10-13 04:13:57.559 Db PersonalGantt[32722:74267] [com.atraz.PersonalGantt:LocalSync] [LocalSync] network.certificate.callback peer=IPHONE_DEVICE fingerprint=IPHONE_PIN accept=true reason=trustedFingerprint outgoing=true
+2026-10-13 04:13:57.564 Db PersonalGantt[32722:74267] [com.atraz.PersonalGantt:LocalSync] [LocalSync] network.connection.connected peer=IPHONE fingerprint=IPHONE_PIN id=IPHONE_DEVICE mutualTLS=true
+2026-10-13 04:13:57.564 Db PersonalGantt[32722:74267] [com.atraz.PersonalGantt:LocalSync] [LocalSync] transport.winner peer=IPHONE fingerprint=IPHONE_PIN id=IPHONE_DEVICE route=network
+2026-10-13 04:13:57.565 Db PersonalGantt[32722:74267] [com.atraz.PersonalGantt:LocalSync] [LocalSync] protocol.sent peer=IPHONE fingerprint=- kind=hello
+2026-10-13 04:13:57.572 Db PersonalGantt[32722:74267] [com.atraz.PersonalGantt:LocalSync] [LocalSync] protocol.received peer=IPHONE fingerprint=- kind=hello
+2026-10-13 04:13:57.572 Db PersonalGantt[32722:74267] [com.atraz.PersonalGantt:LocalSync] [LocalSync] protocol.sent peer=IPHONE fingerprint=- kind=ready
+2026-10-13 04:13:57.572 Db PersonalGantt[32722:74267] [com.atraz.PersonalGantt:LocalSync] [LocalSync] protocol.received peer=IPHONE fingerprint=- kind=ready
+2026-10-13 04:13:58.299 Db PersonalGantt[32722:74267] [com.atraz.PersonalGantt:LocalSync] [LocalSync] sync.start peer=IPHONE fingerprint=-
+2026-10-13 04:13:59.811 Db PersonalGantt[32722:74267] [com.atraz.PersonalGantt:LocalSync] [LocalSync] protocol.received peer=IPHONE fingerprint=- kind=ack
+2026-10-13 04:14:00.707 Db PersonalGantt[32722:74267] [com.atraz.PersonalGantt:LocalSync] [LocalSync] sync.success peer=IPHONE fingerprint=-
+2026-10-13 04:14:00.708 Db PersonalGantt[32722:74267] [com.atraz.PersonalGantt:LocalSync] [LocalSync] protocol.received peer=IPHONE fingerprint=- kind=records
+2026-10-13 04:14:01.808 Db PersonalGantt[32722:74267] [com.atraz.PersonalGantt:LocalSync] [LocalSync] protocol.sent peer=IPHONE fingerprint=- kind=ack
+2026-10-13 04:14:27.302 Db PersonalGantt[32722:74267] [com.atraz.PersonalGantt:LocalSync] [LocalSync] protocol.received peer=IPHONE fingerprint=- kind=records
+2026-10-13 04:14:32.462 Db PersonalGantt[32722:74267] [com.atraz.PersonalGantt:LocalSync] [LocalSync] protocol.sent peer=IPHONE fingerprint=- kind=ack
+2026-10-13 04:14:32.784 Db PersonalGantt[32722:75d7c] [com.atraz.PersonalGantt:LocalSync] [LocalSync] network.path peer=- fingerprint=- status=satisfied interfaces=en0:wifi,en0:wifi includePeerToPeer=true
+2026-10-13 04:14:32.833 Db PersonalGantt[32722:74267] [com.atraz.PersonalGantt:LocalSync] [LocalSync] network.certificate.callback peer=IPHONE_DEVICE fingerprint=IPHONE_PIN accept=true reason=trustedFingerprint outgoing=true
+2026-10-13 04:14:32.838 Db PersonalGantt[32722:74267] [com.atraz.PersonalGantt:LocalSync] [LocalSync] network.connection.connected peer=IPHONE fingerprint=IPHONE_PIN id=IPHONE_DEVICE mutualTLS=true
+2026-10-13 04:14:32.838 Db PersonalGantt[32722:74267] [com.atraz.PersonalGantt:LocalSync] [LocalSync] transport.winner peer=IPHONE fingerprint=IPHONE_PIN id=IPHONE_DEVICE route=network
+2026-10-13 04:14:32.838 Db PersonalGantt[32722:74267] [com.atraz.PersonalGantt:LocalSync] [LocalSync] protocol.sent peer=IPHONE fingerprint=- kind=hello
+2026-10-13 04:14:32.852 Db PersonalGantt[32722:74267] [com.atraz.PersonalGantt:LocalSync] [LocalSync] protocol.received peer=IPHONE fingerprint=- kind=hello
+2026-10-13 04:14:32.852 Db PersonalGantt[32722:74267] [com.atraz.PersonalGantt:LocalSync] [LocalSync] protocol.sent peer=IPHONE fingerprint=- kind=ready
+2026-10-13 04:14:32.853 Db PersonalGantt[32722:74267] [com.atraz.PersonalGantt:LocalSync] [LocalSync] protocol.received peer=IPHONE fingerprint=- kind=ready
+2026-10-13 04:14:33.574 Db PersonalGantt[32722:74267] [com.atraz.PersonalGantt:LocalSync] [LocalSync] sync.start peer=IPHONE fingerprint=-
+2026-10-13 04:14:33.896 Db PersonalGantt[32722:74267] [com.atraz.PersonalGantt:LocalSync] [LocalSync] protocol.received peer=IPHONE fingerprint=- kind=records
+2026-10-13 04:14:35.019 Db PersonalGantt[32722:74267] [com.atraz.PersonalGantt:LocalSync] [LocalSync] protocol.sent peer=IPHONE fingerprint=- kind=ack
+2026-10-13 04:14:35.046 Db PersonalGantt[32722:74267] [com.atraz.PersonalGantt:LocalSync] [LocalSync] protocol.received peer=IPHONE fingerprint=- kind=ack
+2026-10-13 04:14:35.910 Db PersonalGantt[32722:74267] [com.atraz.PersonalGantt:LocalSync] [LocalSync] sync.success peer=IPHONE fingerprint=-
+2026-10-13 04:14:38.096 Db PersonalGantt[32722:74267] [com.atraz.PersonalGantt:LocalSync] [LocalSync] protocol.received peer=IPHONE fingerprint=- kind=records
+2026-10-13 04:14:39.209 Db PersonalGantt[32722:74267] [com.atraz.PersonalGantt:LocalSync] [LocalSync] protocol.sent peer=IPHONE fingerprint=- kind=ack
+2026-10-13 04:15:11.737 Db PersonalGantt[32722:74267] [com.atraz.PersonalGantt:LocalSync] [LocalSync] transport.connection.timeout peer=- fingerprint=-
+2026-10-13 04:15:26.775 Db PersonalGantt[32722:74267] [com.atraz.PersonalGantt:LocalSync] [LocalSync] identity.validated peer=- fingerprint=MAC_PIN algorithm=RSA2048 firstType=SecIdentity publicKeysMatch=true signatureVerified=true
+2026-10-13 04:15:26.798 Db PersonalGantt[32722:74267] [com.atraz.PersonalGantt:LocalSync] [LocalSync] identity.validated peer=- fingerprint=MAC_PIN algorithm=RSA2048 firstType=SecIdentity publicKeysMatch=true signatureVerified=true
+2026-10-13 04:15:26.811 Db PersonalGantt[32722:75fb9] [com.atraz.PersonalGantt:LocalSync] [LocalSync] network.path peer=- fingerprint=- status=satisfied interfaces=en0:wifi,en0:wifi includePeerToPeer=true
+2026-10-13 04:15:41.027 Db PersonalGantt[32722:74267] [com.atraz.PersonalGantt:LocalSync] [LocalSync] transport.connection.timeout peer=- fingerprint=-
+2026-10-13 04:15:56.768 Db PersonalGantt[32722:74267] [com.atraz.PersonalGantt:LocalSync] [LocalSync] identity.validated peer=- fingerprint=MAC_PIN algorithm=RSA2048 firstType=SecIdentity publicKeysMatch=true signatureVerified=true
+2026-10-13 04:15:56.811 Db PersonalGantt[32722:74267] [com.atraz.PersonalGantt:LocalSync] [LocalSync] identity.validated peer=- fingerprint=MAC_PIN algorithm=RSA2048 firstType=SecIdentity publicKeysMatch=true signatureVerified=true
+2026-10-13 04:15:56.823 Db PersonalGantt[32722:76097] [com.atraz.PersonalGantt:LocalSync] [LocalSync] network.path peer=- fingerprint=- status=satisfied interfaces=en0:wifi,en0:wifi includePeerToPeer=true
+2026-10-13 04:16:10.828 Db PersonalGantt[32722:74267] [com.atraz.PersonalGantt:LocalSync] [LocalSync] transport.connection.timeout peer=- fingerprint=-
+2026-10-13 04:16:26.774 Db PersonalGantt[32722:74267] [com.atraz.PersonalGantt:LocalSync] [LocalSync] identity.validated peer=- fingerprint=MAC_PIN algorithm=RSA2048 firstType=SecIdentity publicKeysMatch=true signatureVerified=true
+2026-10-13 04:16:26.795 Db PersonalGantt[32722:74267] [com.atraz.PersonalGantt:LocalSync] [LocalSync] identity.validated peer=- fingerprint=MAC_PIN algorithm=RSA2048 firstType=SecIdentity publicKeysMatch=true signatureVerified=true
+2026-10-13 04:16:26.804 Db PersonalGantt[32722:76149] [com.atraz.PersonalGantt:LocalSync] [LocalSync] network.path peer=- fingerprint=- status=satisfied interfaces=en0:wifi,en0:wifi includePeerToPeer=true
+2026-10-13 04:16:40.828 Db PersonalGantt[32722:74267] [com.atraz.PersonalGantt:LocalSync] [LocalSync] transport.connection.timeout peer=- fingerprint=-
+2026-10-13 04:16:56.117 Db PersonalGantt[32722:74267] [com.atraz.PersonalGantt:LocalSync] [LocalSync] identity.validated peer=- fingerprint=MAC_PIN algorithm=RSA2048 firstType=SecIdentity publicKeysMatch=true signatureVerified=true
+2026-10-13 04:16:56.141 Db PersonalGantt[32722:74267] [com.atraz.PersonalGantt:LocalSync] [LocalSync] identity.validated peer=- fingerprint=MAC_PIN algorithm=RSA2048 firstType=SecIdentity publicKeysMatch=true signatureVerified=true
+2026-10-13 04:17:10.379 Db PersonalGantt[32722:762ef] [com.atraz.PersonalGantt:LocalSync] [LocalSync] network.path peer=- fingerprint=- status=satisfied interfaces=en0:wifi,en0:wifi includePeerToPeer=true
+2026-10-13 04:17:10.478 Db PersonalGantt[32722:74267] [com.atraz.PersonalGantt:LocalSync] [LocalSync] network.certificate.callback peer=IPHONE_DEVICE fingerprint=IPHONE_PIN accept=true reason=trustedFingerprint outgoing=true
+2026-10-13 04:17:10.483 Db PersonalGantt[32722:74267] [com.atraz.PersonalGantt:LocalSync] [LocalSync] network.connection.connected peer=IPHONE fingerprint=IPHONE_PIN id=IPHONE_DEVICE mutualTLS=true
+2026-10-13 04:17:10.483 Db PersonalGantt[32722:74267] [com.atraz.PersonalGantt:LocalSync] [LocalSync] transport.winner peer=IPHONE fingerprint=IPHONE_PIN id=IPHONE_DEVICE route=network
+2026-10-13 04:17:10.483 Db PersonalGantt[32722:74267] [com.atraz.PersonalGantt:LocalSync] [LocalSync] protocol.sent peer=IPHONE fingerprint=- kind=hello
+2026-10-13 04:17:10.586 Db PersonalGantt[32722:74267] [com.atraz.PersonalGantt:LocalSync] [LocalSync] protocol.received peer=IPHONE fingerprint=- kind=hello
+2026-10-13 04:17:10.586 Db PersonalGantt[32722:74267] [com.atraz.PersonalGantt:LocalSync] [LocalSync] protocol.sent peer=IPHONE fingerprint=- kind=ready
+2026-10-13 04:17:10.587 Db PersonalGantt[32722:74267] [com.atraz.PersonalGantt:LocalSync] [LocalSync] protocol.received peer=IPHONE fingerprint=- kind=ready
+2026-10-13 04:20:28.560 Db PersonalGantt[32722:7676c] [com.atraz.PersonalGantt:LocalSync] [LocalSync] network.path peer=- fingerprint=- status=satisfied interfaces=en0:wifi,en0:wifi includePeerToPeer=true
+2026-10-13 04:20:29.934 Db PersonalGantt[32722:74267] [com.atraz.PersonalGantt:LocalSync] [LocalSync] network.certificate.callback peer=IPHONE_DEVICE fingerprint=IPHONE_PIN accept=true reason=trustedFingerprint outgoing=true
+2026-10-13 04:20:29.941 Db PersonalGantt[32722:74267] [com.atraz.PersonalGantt:LocalSync] [LocalSync] network.connection.connected peer=IPHONE fingerprint=IPHONE_PIN id=IPHONE_DEVICE mutualTLS=true
+2026-10-13 04:20:29.941 Db PersonalGantt[32722:74267] [com.atraz.PersonalGantt:LocalSync] [LocalSync] transport.winner peer=IPHONE fingerprint=IPHONE_PIN id=IPHONE_DEVICE route=network
+2026-10-13 04:20:29.942 Db PersonalGantt[32722:74267] [com.atraz.PersonalGantt:LocalSync] [LocalSync] protocol.sent peer=IPHONE fingerprint=- kind=hello
+2026-10-13 04:20:29.957 Db PersonalGantt[32722:74267] [com.atraz.PersonalGantt:LocalSync] [LocalSync] protocol.received peer=IPHONE fingerprint=- kind=hello
+2026-10-13 04:20:29.957 Db PersonalGantt[32722:74267] [com.atraz.PersonalGantt:LocalSync] [LocalSync] protocol.sent peer=IPHONE fingerprint=- kind=ready
+2026-10-13 04:20:29.958 Db PersonalGantt[32722:74267] [com.atraz.PersonalGantt:LocalSync] [LocalSync] protocol.received peer=IPHONE fingerprint=- kind=ready
+2026-10-13 04:20:30.704 Db PersonalGantt[32722:74267] [com.atraz.PersonalGantt:LocalSync] [LocalSync] sync.start peer=IPHONE fingerprint=-
+2026-10-13 04:20:31.034 Db PersonalGantt[32722:74267] [com.atraz.PersonalGantt:LocalSync] [LocalSync] protocol.received peer=IPHONE fingerprint=- kind=records
+2026-10-13 04:20:32.104 Db PersonalGantt[32722:74267] [com.atraz.PersonalGantt:LocalSync] [LocalSync] protocol.sent peer=IPHONE fingerprint=- kind=ack
+2026-10-13 04:20:32.373 Db PersonalGantt[32722:74267] [com.atraz.PersonalGantt:LocalSync] [LocalSync] protocol.received peer=IPHONE fingerprint=- kind=ack
+2026-10-13 04:20:33.248 Db PersonalGantt[32722:74267] [com.atraz.PersonalGantt:LocalSync] [LocalSync] sync.success peer=IPHONE fingerprint=-
+2026-10-13 04:21:22.126 Db PersonalGantt[33003:76c8a] [com.atraz.PersonalGantt:LocalSync] [LocalSync] identity.validated peer=- fingerprint=MAC_PIN algorithm=RSA2048 firstType=SecIdentity publicKeysMatch=true signatureVerified=true
+2026-10-13 04:21:22.163 Db PersonalGantt[33003:76c8a] [com.atraz.PersonalGantt:LocalSync] [LocalSync] identity.validated peer=- fingerprint=MAC_PIN algorithm=RSA2048 firstType=SecIdentity publicKeysMatch=true signatureVerified=true
+2026-10-13 04:25:25.580 Db PersonalGantt[33056:7763c] [com.atraz.PersonalGantt:LocalSync] [LocalSync] identity.validated peer=- fingerprint=MAC_PIN algorithm=RSA2048 firstType=SecIdentity publicKeysMatch=true signatureVerified=true
+2026-10-13 04:25:25.620 Db PersonalGantt[33056:7763c] [com.atraz.PersonalGantt:LocalSync] [LocalSync] identity.validated peer=- fingerprint=MAC_PIN algorithm=RSA2048 firstType=SecIdentity publicKeysMatch=true signatureVerified=true

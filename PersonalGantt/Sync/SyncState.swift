@@ -1,6 +1,6 @@
 import Foundation
 
-nonisolated enum SyncKind: String, Codable, Sendable { case task, routine, workload, workSession, schedulingSettings }
+nonisolated enum SyncKind: String, Codable, Sendable { case task, routine, workload, workSession, schedulingSettings, reminderMetadata }
 nonisolated struct SyncRevision: Codable, Equatable, Comparable, Sendable {
     var date: Date
     var counter: Int
@@ -26,6 +26,11 @@ nonisolated struct SyncState: Codable, Equatable, Sendable {
     var conflictKeys: Set<String> = []
     var isEnabled = false
     var lastSync: Date? = nil
+
+    /// A partial edit must not tombstone entities absent from this device's native snapshot.
+    mutating func captureValue(kind: SyncKind, id: String, payload: Data?, now: Date) {
+        replace(kind: kind, id: id, payload: payload, now: now)
+    }
 
     mutating func capture(kind: SyncKind, values: [String: Data], now: Date) {
         let liveKeys = Set(values.keys.map { kind.rawValue + "_" + $0 })

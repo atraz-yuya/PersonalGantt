@@ -2,6 +2,8 @@
 
 最新の構成はNetwork.frameworkを優先しMPCをfallbackにします。テザリングでの実機成功と未検証範囲は[テザリング同期の実装・検証報告](TetheredLocalSync.md)を参照してください。以下は初期実装時の記録です。
 
+2026-10-13: [Reminder補助メタデータの同期](ReminderMetadataSync.md)を追加しました。現在のprotocol/schemaはv2です。両端末の更新が必要ですが、既存の信頼情報は維持します。Reminder本体の扱いは従来どおりEventKit/iCloudが正です。
+
 ブランチ: `codex/local-device-sync`。コミットは実装完了メッセージに記載します。
 
 ## 実装と変更ファイル
