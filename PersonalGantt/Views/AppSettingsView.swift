@@ -46,6 +46,10 @@ struct AppSettingsView: View {
                     .font(.caption).foregroundStyle(.secondary)
             }
             Section("タスク・計画") {
+                NavigationLink { ActivitySettingsView(model: model) } label: { Label("稼働時間・日付ごとの変更", systemImage: "clock") }
+                    .accessibilityIdentifier("settings-activity")
+                NavigationLink { CreatedWorkSettingsView(model: model) } label: { Label("作成した作業の管理", systemImage: "trash") }
+                    .accessibilityIdentifier("settings-created-work")
                 NavigationLink {
                     WorkloadRoutineView(model: model, page: .planning, embedded: true)
                 } label: { Label("作業量・ルーティン・配置", systemImage: "slider.horizontal.3") }

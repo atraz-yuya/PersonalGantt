@@ -200,15 +200,6 @@ struct WorkloadRoutineView: View {
               }.buttonStyle(.borderless).disabled(model.isBackupRecoveryRequired)
             }.padding(.vertical, 4)
           }
-          Button("ルーティンを追加", systemImage: "plus") {
-            let start = model.presentationCalendar.startOfDay(for: Date())
-            let end =
-              model.presentationCalendar.date(byAdding: .month, value: 1, to: start) ?? start
-            editor = RoutineEditorRoute(
-              routine: Routine(
-                title: "", estimatedMinutesPerDay: 60,
-                startDate: start, endDate: end, recurrence: .daily))
-          }.disabled(model.isBackupRecoveryRequired).accessibilityIdentifier("add-routine")
           Text("計画対象期間内の各日の作業要件を自動生成します。完了・スキップはその日だけに適用します。終了日を含め、最長90暦日まで計画します。")
             .font(.caption).foregroundStyle(.secondary)
         }

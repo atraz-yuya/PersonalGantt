@@ -10,10 +10,11 @@ nonisolated struct SchedulingSettings: Codable, Equatable, Sendable {
     var maxContinuousMinutes: Int? = nil
     var minimumBreakMinutes: Int? = nil
     var weights: OptimizationWeights? = nil
+    var activitySettings: ActivitySettings? = nil
     var isValid: Bool {
         let restValid = (maxContinuousMinutes == nil && minimumBreakMinutes == nil) ||
             (maxContinuousMinutes.map { (1...480).contains($0) } == true && minimumBreakMinutes.map { (1...120).contains($0) } == true)
-        return restValid && (weights?.isValid ?? true)
+        return restValid && (weights?.isValid ?? true) && (activitySettings?.isValid ?? true)
     }
     static let `default` = SchedulingSettings()
 }

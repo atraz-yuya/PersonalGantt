@@ -16,7 +16,7 @@ struct GoogleEventConversionTests {
         #expect(fixed.start == local(6, 0))
         #expect(fixed.end == local(7, 0))
         #expect(fixed.isAllDay)
-        let slots = try AvailabilityService().availableSlots(fixedEvents: [fixed], referenceDate: local(6, 0), calendar: tokyo)
+        let slots = try AvailabilityService().availableSlots(fixedEvents: [fixed], settings: .legacyFixture, referenceDate: local(6, 0), calendar: tokyo)
         #expect(slots.first?.start == local(7, 8))
     }
 

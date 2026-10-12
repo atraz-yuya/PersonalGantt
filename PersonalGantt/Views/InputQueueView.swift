@@ -34,7 +34,7 @@ struct InputQueueView: View {
                     Text("Remindersの使用リストは設定から選択できます。")
                 } actions: { Button("設定を開く", action: onSettings) }
             }
-        }.navigationTitle("入力待ち").accessibilityIdentifier("input-queue")
+        }.navigationTitle("待ち").accessibilityIdentifier("input-queue")
             .environment(\.calendar, model.presentationCalendar)
             .environment(\.timeZone, model.presentationCalendar.timeZone)
     }

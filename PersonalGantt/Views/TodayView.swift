@@ -6,6 +6,7 @@ struct TodayView: View {
     var onInputQueue: () -> Void = { }
     var onSettings: () -> Void = { }
     @State private var workError: String?
+    @State private var activityDay: TodayActivityRoute?
     var body: some View {
         TimelineView(.periodic(from: .now, by: 60)) { context in
             let summary = TodaySummary.make(now: context.date, tasks: model.tasks, blocks: model.result.blocks,
@@ -13,6 +14,11 @@ struct TodayView: View {
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: 18) {
                     Text(context.date.formatted(date: .abbreviated, time: .shortened)).font(.title2.bold())
+                    Button {
+                        activityDay = TodayActivityRoute(day: context.date)
+                    } label: {
+                        Label("今日の稼働時間: " + (model.activitySettings.window(on: context.date, calendar: model.presentationCalendar)?.displayName ?? "稼働なし") + "・変更", systemImage: "clock")
+                    }.disabled(model.isBackupRecoveryRequired).accessibilityIdentifier("today-activity")
                     ViewThatFits(in: .horizontal) {
                         HStack {
                             metric("今日の残り予定", "\(summary.remainingPlannedMinutes.rounded(.up).formatted())分")
@@ -92,9 +98,19 @@ struct TodayView: View {
                     }
                 }.padding()
             }.accessibilityIdentifier("today-dashboard")
+        }.sheet(item: $activityDay) { route in
+            NavigationStack {
+                DayActivityView(model: model, day: route.day)
+                    .toolbar { ToolbarItem(placement: .cancellationAction) { Button("閉じる") { activityDay = nil } } }
+            }
+            #if os(macOS)
+            .frame(minWidth: 450, minHeight: 360)
+            #endif
         }
     }
     private func metric(_ title: String, _ value: String) -> some View {
         VStack(alignment: .leading, spacing: 4) { Text(title).font(.caption).foregroundStyle(.secondary); Text(value).font(.headline) }
     }
 }
+
+private struct TodayActivityRoute: Identifiable { let id = UUID(); let day: Date }

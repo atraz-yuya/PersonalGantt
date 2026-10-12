@@ -12,7 +12,7 @@ struct DynamicPlanningIntegrationTests {
     }
     private func model(_ provider: HorizonCalendarProvider? = nil,
                        store: (any PlanSnapshotStoring)? = nil, clock: HorizonClock? = nil) -> ScheduleViewModel {
-        let value = ScheduleViewModel(tasks: [], calendarProvider: provider ?? HorizonCalendarProvider(), calendar: calendar,
+        let value = ScheduleViewModel(tasks: [], calendarProvider: provider ?? HorizonCalendarProvider(), activitySettings: .legacyFixture, calendar: calendar,
             clock: { clock?.now ?? now }, planStore: store ?? HorizonPlanStore())
         value.configureBackup(reminderStore: MemoryReminderMetadata(), journal: HorizonJournal(), deviceID: UUID())
         return value
@@ -32,7 +32,7 @@ struct DynamicPlanningIntegrationTests {
             (200, #"{"items":[{"id":"third-week","summary":"Synthetic","start":{"dateTime":"2026-10-28T08:00:00Z"},"end":{"dateTime":"2026-10-28T23:00:00Z"}}]}"#)
         ]
         let value = ScheduleViewModel(tasks: [], calendarProvider: GoogleCalendarService(tokens: MockGoogleTokens(),
-            transport: http, calendar: calendar), calendar: calendar, clock: { now })
+            transport: http, calendar: calendar), activitySettings: .legacyFixture, calendar: calendar, clock: { now })
         try value.setWorkloadSettings(WorkloadSettings(maxScheduledMinutesPerDay: 300))
         _ = try add(value, days: days, minutes: 9000)
         #expect(await value.applyCalendarSelection(["work"]))

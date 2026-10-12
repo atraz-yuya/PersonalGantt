@@ -194,7 +194,7 @@ struct WorkloadRoutineIntegrationTests {
 
     private func makeModel(_ store: any PlanSnapshotStoring, provider: WorkloadCalendarProvider? = nil, clock: WorkloadClock? = nil) -> ScheduleViewModel {
         let model = ScheduleViewModel(tasks: [], calendarProvider: provider ?? WorkloadCalendarProvider(),
-            calendar: ReminderFixtures.calendar, clock: { clock?.date ?? date(0) }, planStore: store)
+            activitySettings: .legacyFixture, calendar: ReminderFixtures.calendar, clock: { clock?.date ?? date(0) }, planStore: store)
         model.configureBackup(reminderStore: MemoryReminderMetadata(), journal: WorkloadBackupJournal(), deviceID: UUID())
         return model
     }

@@ -25,7 +25,7 @@ struct TodayTests {
 @MainActor struct TodayIntegrationTests {
     @Test func skipNormalWorkDefersFutureWithoutDeletingTaskAndSyncs() throws {
         let provider = TodayProvider()
-        let model = ScheduleViewModel(tasks: [], calendarProvider: provider, calendar: ReminderFixtures.calendar, clock: { ReminderFixtures.date(0) })
+        let model = ScheduleViewModel(tasks: [], calendarProvider: provider, activitySettings: .legacyFixture, calendar: ReminderFixtures.calendar, clock: { ReminderFixtures.date(0) })
         let task = try model.addTask(TaskDraft(title: "Synthetic", deadline: ReminderFixtures.date(23, day: 9)))
         model.skipToday(taskID: task.id)
         #expect(model.tasks.count == 1 && model.result.blocks.first?.start == ReminderFixtures.date(8, day: 8))

@@ -155,7 +155,7 @@ import Testing
         #expect(a.selectedCalendarIDs.isEmpty && !a.calendars.contains { $0.id == "own" })
     }
     private func model() -> ScheduleViewModel {
-        let value = ScheduleViewModel(tasks: [], calendarProvider: ModelWriteCalendar(), calendar: ReminderFixtures.calendar,
+        let value = ScheduleViewModel(tasks: [], calendarProvider: ModelWriteCalendar(), activitySettings: .legacyFixture, calendar: ReminderFixtures.calendar,
             clock: { ReminderFixtures.date(0) }, planStore: ModelWriteStore())
         value.configureBackup(reminderStore: MemoryReminderMetadata(), journal: ModelWriteJournal(), deviceID: UUID())
         return value

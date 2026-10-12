@@ -116,7 +116,7 @@ import Testing
         let calendar = QueueCalendar(), provider = FakeReminderProvider(), metadata = MemoryReminderMetadata(), plan = QueuePlanStore()
         provider.records = records
         if let minutes { metadata.state.metadata["r"] = ReminderFixtures.metadata(minutes: minutes) }
-        let model = ScheduleViewModel(tasks: [], calendarProvider: calendar, calendar: ReminderFixtures.calendar, clock: { ReminderFixtures.date(0) })
+        let model = ScheduleViewModel(tasks: [], calendarProvider: calendar, activitySettings: .legacyFixture, calendar: ReminderFixtures.calendar, clock: { ReminderFixtures.date(0) })
         model.attachPlanStore(plan); model.attachReminders(provider: provider, storage: metadata)
         #expect(await model.applyCalendarSelection(["study"]))
         #expect(await model.reminders?.applySelection(["list"]) == true)

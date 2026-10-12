@@ -9,7 +9,7 @@ struct GoogleCalendarTests {
         http.responses = [(200, calendars), (200, exampleEvents)]
         let service = GoogleCalendarService(tokens: MockGoogleTokens(), transport: http, calendar: utc)
         let task = PersonalGantt.Task(title: "卒論", estimatedMinutes: 300, deadline: date(23))
-        let model = ScheduleViewModel(tasks: [task], calendarProvider: service, calendar: utc, clock: { date(0) })
+        let model = ScheduleViewModel(tasks: [task], calendarProvider: service, activitySettings: .legacyFixture, calendar: utc, clock: { date(0) })
         #expect(await model.applyCalendarSelection(["study"]))
         #expect(Array(model.availableSlots.prefix(3)).map { DateInterval(start: $0.start, end: $0.end) } == [
             DateInterval(start: date(8), end: date(10)),
@@ -107,7 +107,7 @@ struct GoogleCalendarTests {
     @Test func refreshChangesFutureScheduleAndFailedPageRetainsSnapshot() async {
         let http = MockGoogleHTTP()
         let model = ScheduleViewModel(tasks: [PersonalGantt.Task(title: "作業", estimatedMinutes: 180, deadline: date(23))],
-            calendarProvider: GoogleCalendarService(tokens: MockGoogleTokens(), transport: http, calendar: utc),
+            calendarProvider: GoogleCalendarService(tokens: MockGoogleTokens(), transport: http, calendar: utc), activitySettings: .legacyFixture,
             calendar: utc, clock: { date(0) })
         http.responses = [(200, calendars), (200, exampleEvents)]
         #expect(await model.applyCalendarSelection(["study"]))
@@ -126,7 +126,7 @@ struct GoogleCalendarTests {
     @Test func taskEditDuringFetchIsUsedByPublishedPlan() async throws {
         let http = MockGoogleHTTP()
         let task = PersonalGantt.Task(title: "旧名", estimatedMinutes: 30, deadline: date(23))
-        let model = ScheduleViewModel(tasks: [task], calendarProvider: GoogleCalendarService(tokens: MockGoogleTokens(), transport: http, calendar: utc),
+        let model = ScheduleViewModel(tasks: [task], calendarProvider: GoogleCalendarService(tokens: MockGoogleTokens(), transport: http, calendar: utc), activitySettings: .legacyFixture,
                                       calendar: utc, clock: { date(0) })
         http.responses = [(200, calendars), (200, exampleEvents)]
         var changed = false

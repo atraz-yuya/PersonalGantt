@@ -172,7 +172,7 @@ struct TaskCreationServiceTests {
 
     private func makeModel(_ store: any PlanSnapshotStoring, provider: IntentCalendarProvider? = nil) -> ScheduleViewModel {
         ScheduleViewModel(tasks: [], calendarProvider: provider ?? IntentCalendarProvider(),
-                          calendar: ReminderFixtures.calendar, clock: { date(0) }, planStore: store)
+                          activitySettings: .legacyFixture, calendar: ReminderFixtures.calendar, clock: { date(0) }, planStore: store)
     }
     private func date(_ hour: Int, day: Int = 7) -> Date { ReminderFixtures.date(hour, day: day) }
 }

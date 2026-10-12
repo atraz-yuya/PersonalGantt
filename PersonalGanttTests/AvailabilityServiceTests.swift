@@ -74,7 +74,7 @@ struct AvailabilityServiceTests {
     }
 
     @Test func SaturdayAndSundayUseWeekendHours() throws {
-        var settings = ActivitySettings.default
+        var settings = ActivitySettings.legacyFixture
         settings.planningDayCount = 3
         let slots = try service.availableSlots(fixedEvents: [], settings: settings, referenceDate: date(0, day: 10), calendar: utc)
         #expect(slots.map { DateInterval(start: $0.start, end: $0.end) } == [
@@ -84,8 +84,8 @@ struct AvailabilityServiceTests {
 
     @Test func defaultHorizonIsFourteenLocalDaysIncludingToday() throws {
         let reference = date(0, day: 6)
-        let interval = try service.planningInterval(referenceDate: reference, calendar: utc)
-        let slots = try service.availableSlots(fixedEvents: [], referenceDate: reference, calendar: utc)
+        let interval = try service.planningInterval(referenceDate: reference, settings: .legacyFixture, calendar: utc)
+        let slots = try service.availableSlots(fixedEvents: [], settings: .legacyFixture, referenceDate: reference, calendar: utc)
         #expect(interval == DateInterval(start: reference, end: date(0, day: 20)))
         #expect(slots.count == 14)
         #expect(slots.last?.end == date(23, day: 19))
@@ -97,7 +97,7 @@ struct AvailabilityServiceTests {
     }
 
     @Test func settingsCanBeChangedWithoutChangingService() throws {
-        var settings = ActivitySettings.default
+        var settings = ActivitySettings.legacyFixture
         settings.weekday = ActivityWindow(startMinute: 10 * 60 + 30, endMinute: 1440)
         settings.planningDayCount = 1
         let slots = try service.availableSlots(fixedEvents: [], settings: settings, referenceDate: date(0), calendar: utc)
@@ -106,7 +106,7 @@ struct AvailabilityServiceTests {
 
     @Test(arguments: [0, 1, 2, 3])
     func invalidActivitySettingsAreRejected(index: Int) {
-        var settings = ActivitySettings.default
+        var settings = ActivitySettings.legacyFixture
         switch index {
         case 0: settings.planningDayCount = 0
         case 1: settings.weekday = ActivityWindow(startMinute: 23 * 60, endMinute: 8 * 60)
@@ -123,8 +123,8 @@ struct AvailabilityServiceTests {
         calendar.timeZone = try #require(TimeZone(identifier: "America/Los_Angeles"))
         let start = try #require(calendar.date(from: DateComponents(year: 2026, month: 10, day: 26)))
         let end = try #require(calendar.date(from: DateComponents(year: 2026, month: 11, day: 9)))
-        let interval = try service.planningInterval(referenceDate: start, calendar: calendar)
-        let slots = try service.availableSlots(fixedEvents: [], referenceDate: start, calendar: calendar)
+        let interval = try service.planningInterval(referenceDate: start, settings: .legacyFixture, calendar: calendar)
+        let slots = try service.availableSlots(fixedEvents: [], settings: .legacyFixture, referenceDate: start, calendar: calendar)
         #expect(interval.end == end)
         #expect(interval.duration == 14 * 24 * 3600 + 3600)
         #expect(slots.count == 14)
@@ -141,7 +141,7 @@ struct AvailabilityServiceTests {
         func local(_ hour: Int) throws -> Date {
             try #require(calendar.date(from: DateComponents(year: 2026, month: 10, day: 5, hour: hour)))
         }
-        var settings = ActivitySettings.default
+        var settings = ActivitySettings.legacyFixture
         settings.planningDayCount = 1
         let busy = try FixedEvent(id: "tokyo", calendarID: "work", title: "予定", start: local(12), end: local(13))
         let slots = try service.availableSlots(fixedEvents: [busy], settings: settings, referenceDate: local(0), calendar: calendar)
@@ -149,9 +149,9 @@ struct AvailabilityServiceTests {
     }
 
     @Test func eventsOutsideFourteenDayRangeHaveNoEffect() throws {
-        let original = try service.availableSlots(fixedEvents: [], referenceDate: date(0), calendar: utc)
+        let original = try service.availableSlots(fixedEvents: [], settings: .legacyFixture, referenceDate: date(0), calendar: utc)
         let outside = [event(8, 23, day: 4), event(8, 23, day: 20)]
-        let updated = try service.availableSlots(fixedEvents: outside, referenceDate: date(0), calendar: utc)
+        let updated = try service.availableSlots(fixedEvents: outside, settings: .legacyFixture, referenceDate: date(0), calendar: utc)
         #expect(original.map { DateInterval(start: $0.start, end: $0.end) } == updated.map { DateInterval(start: $0.start, end: $0.end) })
     }
 
@@ -174,7 +174,7 @@ struct AvailabilityServiceTests {
     }
 
     private func ranges(_ events: [FixedEvent], days: Int = 1, reference: Date? = nil) throws -> [DateInterval] {
-        var settings = ActivitySettings.default
+        var settings = ActivitySettings.legacyFixture
         settings.planningDayCount = days
         return try service.availableSlots(fixedEvents: events, settings: settings, referenceDate: reference ?? date(0), calendar: utc)
             .map { DateInterval(start: $0.start, end: $0.end) }
