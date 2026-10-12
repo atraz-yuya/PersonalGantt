@@ -45,6 +45,16 @@ struct ContentView: View {
 
     var body: some View {
         workspace
+            .task(id: isForeground) {
+                guard isForeground else { return }
+                while !_Concurrency.Task.isCancelled {
+                    do { try await _Concurrency.Task.sleep(for: .seconds(120)) } catch { return }
+                    await model.synchronizeIfActive()
+                }
+            }
+            .onChange(of: model.syncState.isEnabled) { _, enabled in
+                if enabled { _Concurrency.Task { await model.synchronizeIfActive() } }
+            }
             .onChange(of: model.result.blocks) { _, _ in
                 _Concurrency.Task { await model.publishScheduleIfActive() }
             }

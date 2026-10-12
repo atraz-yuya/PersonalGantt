@@ -70,6 +70,22 @@ import Testing
         state = try await writer.publish(blocks: [], titles: [:], state: state, now: ReminderFixtures.date(9), calendar: ReminderFixtures.calendar)
         #expect(http.events.count == 1 && http.writeCount == writes && state.events.count == 1)
     }
+    @Test(arguments: [0, 1, 2]) func elapsedTimeCannotReuseBegunEventIDForSameTaskFutureBlock(kind: Int) async throws {
+        let http = WriteHTTP(), writer = GoogleWritebackService(tokens: WriteTokens(), transport: http)
+        var state = WritebackState(); state.enabled = true
+        let first = block(), later = block(10, 11, id: first.taskID)
+        state = try await writer.publish(blocks: [first, later], titles: [:], state: state, now: ReminderFixtures.date(0), calendar: ReminderFixtures.calendar)
+        let begun = try #require(state.events.values.first { $0.start == first.start })
+        let before = try JSONSerialization.data(withJSONObject: #require(http.events[begun.id]), options: [.sortedKeys])
+        let writes = http.writeCount
+        if kind == 2 { state.events = [:] } // simulate a lost checkpoint; discover both events
+        let blocks = kind == 0 ? [first, later] : [later]
+        state = try await writer.publish(blocks: blocks, titles: [:], state: state, now: ReminderFixtures.date(9), calendar: ReminderFixtures.calendar)
+        #expect(try JSONSerialization.data(withJSONObject: #require(http.events[begun.id]), options: [.sortedKeys]) == before)
+        #expect(state.events.count == 2 && http.events.count == 2 && http.writeCount == writes)
+        state = try await writer.publish(blocks: blocks, titles: [:], state: state, now: ReminderFixtures.date(9), calendar: ReminderFixtures.calendar)
+        #expect(http.writeCount == writes)
+    }
     @Test func mismatchingDestinationMarkerPreventsAnyWrites() async throws {
         let http = WriteHTTP(), writer = GoogleWritebackService(tokens: WriteTokens(), transport: http)
         http.description = "Existing user calendar"

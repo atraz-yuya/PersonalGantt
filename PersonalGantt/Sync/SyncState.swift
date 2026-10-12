@@ -44,7 +44,14 @@ nonisolated struct SyncState: Codable, Equatable, Sendable {
                                  baseRevision: previous?.revision, payload: payload)
     }
     mutating func merge(_ incoming: [SyncRecord]) throws {
-        for record in incoming { try Self.validate(record) }
+        var seen: [String: SyncRecord] = [:]
+        for record in incoming {
+            try Self.validate(record)
+            let revisionKey = "\(record.key)|\(record.revision.date.timeIntervalSinceReferenceDate.bitPattern)|\(record.revision.counter)|\(record.revision.deviceID)"
+            if let previous = seen[revisionKey], previous != record { throw SyncError.invalidData }
+            if let local = records[record.key], local.revision == record.revision, local != record { throw SyncError.invalidData }
+            seen[revisionKey] = record
+        }
         for record in incoming.sorted(by: { $0.key < $1.key }) {
             if let local = records[record.key] {
                 if local.revision != record.revision && local.payload != record.payload &&
@@ -57,7 +64,7 @@ nonisolated struct SyncState: Codable, Equatable, Sendable {
         }
     }
     func validate() throws {
-        guard records.count <= 10000, conflictKeys.allSatisfy({ records[$0] != nil }) else { throw SyncError.invalidData }
+        guard (lastSync.map { $0.timeIntervalSinceReferenceDate.isFinite && $0 >= .distantPast && $0 <= .distantFuture } ?? true), conflictKeys.allSatisfy({ records[$0] != nil }) else { throw SyncError.invalidData }
         for (key, record) in records { guard key == record.key else { throw SyncError.invalidData }; try Self.validate(record) }
     }
     static func validate(_ record: SyncRecord) throws {
@@ -66,7 +73,8 @@ nonisolated struct SyncState: Codable, Equatable, Sendable {
               record.revision.date >= .distantPast, record.revision.date <= .distantFuture,
               (record.payload?.count ?? 0) <= 2_000_000 else { throw SyncError.invalidData }
         if let base = record.baseRevision {
-            guard base.counter >= 0, base.date.timeIntervalSinceReferenceDate.isFinite, base < record.revision else { throw SyncError.invalidData }
+            guard base.counter >= 0, base.counter < 1_000_000_000, base.date.timeIntervalSinceReferenceDate.isFinite,
+                  base.date >= .distantPast, base.date <= .distantFuture, base < record.revision else { throw SyncError.invalidData }
         }
     }
     static func payloadData<T: Encodable>(_ value: T) throws -> Data {

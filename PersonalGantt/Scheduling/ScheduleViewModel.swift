@@ -22,6 +22,7 @@ final class ScheduleViewModel {
     private(set) var syncState = SyncState()
     private(set) var syncMessage: String?
     private(set) var isSyncing = false
+    @ObservationIgnored private var syncPending = false
     @ObservationIgnored private var syncTransport: (any SyncTransport)?
     private(set) var availableSlots: [AvailableSlot]
     private(set) var result: SchedulingResult
@@ -186,7 +187,7 @@ final class ScheduleViewModel {
             } else {
                 // Calendar context changed outside this checkpoint: only begun work is safe.
                 result = ScheduleReplanner().schedule(tasks: tasks, availableSlots: [],
-                    previousBlocks: snapshot.blocks, now: clock(), workloadSettings: workloadSettings, calendar: calendar, workSessions: workSessions, distributionMode: schedulingSettings.distributionMode, optimizationSettings: schedulingSettings)
+                    previousBlocks: snapshot.blocks, now: clock(), workloadSettings: workloadSettings, calendar: calendar, workSessions: effectiveWorkSessions, distributionMode: schedulingSettings.distributionMode, optimizationSettings: schedulingSettings)
                 availableSlots = []
                 calendars = []
                 fixedEvents = []
@@ -229,7 +230,7 @@ final class ScheduleViewModel {
             workloadSettings: workloadSettings, routines: routines, calendarCoverage: calendarCoverage, writebackState: writebackState, syncState: syncState, workSessions: workSessions, schedulingSettings: schedulingSettings, activeWorkSession: activeWorkSession)
     }
 
-    var canEnableWriteback: Bool { writebackProvider != nil && calendarAuthorization == .connected && !isPlanStorageBlocked }
+    var canEnableWriteback: Bool { writebackProvider != nil && calendarAuthorization == .connected && !isPlanStorageBlocked && !isBackupRecoveryRequired }
     func attachWritebackProvider(_ provider: any CalendarWritebackProviding) { writebackProvider = provider }
     func enableWriteback() async {
         guard let writebackProvider, !isBackupRecoveryRequired, !isPublishing else { return }
@@ -246,9 +247,12 @@ final class ScheduleViewModel {
             await publishSchedule()
         } catch { writebackMessage = (error as? LocalizedError)?.errorDescription ?? WritebackError.network.localizedDescription }
     }
-    func disableWriteback() { writebackState.enabled = false; writebackPending = false; savePlan() }
+    func disableWriteback() {
+        guard !isBackupRecoveryRequired else { return }
+        writebackState.enabled = false; writebackPending = false; savePlan()
+    }
     func resetWritebackDestination() {
-        guard !isPublishing else { return }
+        guard !isPublishing, !isBackupRecoveryRequired else { return }
         writebackState = WritebackState(); savePlan()
         writebackMessage = "書き戻しをOFFにしました。次に有効にすると新しい専用Calendarを作成します。以前のCalendarはGoogle側で管理してください。"
     }
@@ -276,9 +280,10 @@ final class ScheduleViewModel {
         } while writebackPending && isApplicationActive && writebackState.enabled && !_Concurrency.Task.isCancelled
     }
 
-    var canEnableSync: Bool { syncTransport != nil }
+    var canEnableSync: Bool { syncTransport != nil && !isPlanStorageBlocked && !isBackupRecoveryRequired }
     func attachSyncTransport(_ transport: any SyncTransport) { syncTransport = transport }
     func setSyncEnabled(_ enabled: Bool) {
+        guard !isBackupRecoveryRequired else { return }
         guard !enabled || canEnableSync else { syncMessage = SyncError.unavailable.localizedDescription; return }
         syncState.isEnabled = enabled
         savePlan()
@@ -300,22 +305,33 @@ final class ScheduleViewModel {
     }
     func synchronizeIfActive() async { if isApplicationActive { await synchronize() } }
     func synchronize() async {
-        guard syncState.isEnabled, let syncTransport, !isSyncing, !isBackupRecoveryRequired else { return }
+        guard syncState.isEnabled, let syncTransport, !isBackupRecoveryRequired, !isPlanStorageBlocked else { return }
+        if isSyncing { syncPending = true; return }
         isSyncing = true
         defer { isSyncing = false }
-        captureSyncChanges()
-        do {
-            let remote = try await syncTransport.exchange(Array(syncState.records.values))
-            try _Concurrency.Task.checkCancellation()
-            try mergeSyncRecords(remote)
-            syncState.lastSync = clock()
-            syncMessage = syncState.conflictKeys.isEmpty ? "iCloud同期を反映しました。" : "競合を検出しました。更新日時の新しい内容を採用しています。"
-            savePlan()
-        } catch { syncMessage = (error as? SyncError)?.localizedDescription ?? SyncError.network.localizedDescription }
+        repeat {
+            syncPending = false
+            captureSyncChanges()
+            do {
+                let remote = try await syncTransport.exchange(Array(syncState.records.values))
+                try _Concurrency.Task.checkCancellation()
+                guard syncState.isEnabled, !isBackupRecoveryRequired else { return }
+                try mergeSyncRecords(remote)
+                syncState.lastSync = clock()
+                syncMessage = syncState.conflictKeys.isEmpty ? "iCloud同期を反映しました。" : "競合を検出しました。更新日時の新しい内容を採用しています。"
+                savePlan()
+            } catch { syncMessage = (error as? SyncError)?.localizedDescription ?? SyncError.network.localizedDescription; return }
+        } while syncPending && isApplicationActive && syncState.isEnabled && !_Concurrency.Task.isCancelled
     }
+    func acknowledgeSyncConflicts() {
+        guard !isBackupRecoveryRequired else { return }
+        syncState.conflictKeys = []; savePlan()
+    }
+
     func mergeSyncRecords(_ incoming: [SyncRecord]) throws {
         guard !isBackupRecoveryRequired else { throw BackupError.recoveryRequired }
         captureSyncChanges()
+        for record in incoming { try SyncPayloadValidator.validate(record) }
         var merged = syncState
         try merged.merge(incoming)
         var ordinary: [Task] = [], nextRoutines: [Routine] = [], nextWorkload = workloadSettings
@@ -521,11 +537,11 @@ final class ScheduleViewModel {
         if calendarProvider == nil {
             // Explicit-slot clients and existing tests retain their pure scheduler API.
             result = ScheduleOptimizationEngine().schedule(OptimizationRequest(tasks: tasks, slots: availableSlots,
-                completedMinutes: WorkSession.minutesByTask(workSessions), workload: workloadSettings, settings: schedulingSettings, calendar: calendar))
+                completedMinutes: WorkSession.minutesByTask(effectiveWorkSessions), workload: workloadSettings, settings: schedulingSettings, calendar: calendar))
         } else {
             let now = clock()
             result = ScheduleReplanner().schedule(tasks: tasks, availableSlots: availableSlots, previousBlocks: hasConfirmedPlan ? result.blocks : [],
-                                                 now: now, workloadSettings: workloadSettings, calendar: calendar, workSessions: workSessions, distributionMode: schedulingSettings.distributionMode, optimizationSettings: schedulingSettings)
+                                                 now: now, workloadSettings: workloadSettings, calendar: calendar, workSessions: effectiveWorkSessions, distributionMode: schedulingSettings.distributionMode, optimizationSettings: schedulingSettings)
             updateProtectedConflicts(now: now)
         }
         lastRecalculation = clock()
@@ -711,7 +727,7 @@ final class ScheduleViewModel {
             let previous = hasConfirmedPlan ? result.blocks : []
             rebuildRoutineTasks(in: range)
             let nextResult = ScheduleReplanner().schedule(tasks: tasks, availableSlots: slots, previousBlocks: previous, now: now,
-                                                        workloadSettings: workloadSettings, calendar: calendar, workSessions: workSessions, distributionMode: schedulingSettings.distributionMode, optimizationSettings: schedulingSettings)
+                                                        workloadSettings: workloadSettings, calendar: calendar, workSessions: effectiveWorkSessions, distributionMode: schedulingSettings.distributionMode, optimizationSettings: schedulingSettings)
             calendars = sources
             selectedCalendarIDs = effectiveIDs
             fixedEvents = events
@@ -795,7 +811,7 @@ final class ScheduleViewModel {
             try rebuildPlanningAvailability(now: now)
             rebuildRoutineTasks(in: routinePlanningRange)
             result = ScheduleReplanner().schedule(tasks: tasks, availableSlots: availableSlots, previousBlocks: protected, now: now,
-                                                 workloadSettings: workloadSettings, calendar: calendar, workSessions: workSessions, distributionMode: schedulingSettings.distributionMode, optimizationSettings: schedulingSettings)
+                                                 workloadSettings: workloadSettings, calendar: calendar, workSessions: effectiveWorkSessions, distributionMode: schedulingSettings.distributionMode, optimizationSettings: schedulingSettings)
             updateProtectedConflicts(now: now)
             isRestoredPlan = false
             calendarMessage = "端末のGoogle認証情報を削除しました。活動可能時間のみで配置しています。"
@@ -939,16 +955,25 @@ final class ScheduleViewModel {
         recalculate()
     }
 
-    func completedMinutes(for taskID: UUID) -> Double { WorkSession.minutesByTask(workSessions)[taskID] ?? 0 }
+    private var effectiveWorkSessions: [WorkSession] {
+        workSessions.map { session in
+            guard let external = session.reminderExternalIdentifier, !external.isEmpty else { return session }
+            let records = (reminders?.records ?? []).filter { $0.externalIdentifier == external && $0.occurrenceKey == session.reminderOccurrenceKey }
+            guard records.count == 1, let local = tasks.first(where: { $0.reminderIdentifier == records[0].id }) else { return session }
+            var mapped = session; mapped.taskID = local.id; return mapped
+        }
+    }
+    func sessions(for taskID: UUID) -> [WorkSession] { effectiveWorkSessions.filter { $0.taskID == taskID } }
+    func completedMinutes(for taskID: UUID) -> Double { WorkSession.minutesByTask(effectiveWorkSessions)[taskID] ?? 0 }
     func remainingMinutes(for task: Task) -> Double {
         task.isCompleted ? 0 : max(0, Double(task.estimatedMinutes) - completedMinutes(for: task.id))
     }
     func unallocatedMinutes(for task: Task) -> Double {
         guard !task.isCompleted else { return 0 }
         let planned: Double
-        if workSessions.contains(where: { $0.taskID == task.id }) {
+        if !sessions(for: task.id).isEmpty {
             planned = result.blocks.filter { $0.taskID == task.id && $0.end > clock() }.reduce(0) { total, block in
-                total + (block.start > clock() ? block.durationMinutes : WorkSession.unrecordedMinutes(in: block, sessions: workSessions))
+                total + (block.start > clock() ? block.durationMinutes : WorkSession.unrecordedMinutes(in: block, sessions: effectiveWorkSessions))
             }
         } else { planned = scheduledMinutes(for: task.id) }
         return max(0, remainingMinutes(for: task) - planned)
@@ -960,8 +985,11 @@ final class ScheduleViewModel {
         guard (1...1440).contains(minutes) else { throw WorkSessionError.invalid }
         let end = endingAt ?? clock()
         guard end <= clock() else { throw WorkSessionError.invalid }
-        let session = WorkSession(taskID: taskID, taskTitle: task.title,
+        var session = WorkSession(taskID: taskID, taskTitle: task.title,
             start: end.addingTimeInterval(-Double(minutes) * 60), end: end, actualMinutes: minutes)
+        if let identifier = task.reminderIdentifier, let record = reminders?.record(for: identifier) {
+            session.reminderExternalIdentifier = record.externalIdentifier; session.reminderOccurrenceKey = record.occurrenceKey
+        }
         try session.validate()
         workSessions.append(session); recalculate()
     }
@@ -975,13 +1003,22 @@ final class ScheduleViewModel {
         guard !isBackupRecoveryRequired else { throw BackupError.recoveryRequired }
         guard let activeWorkSession else { throw WorkSessionError.noRunningSession }
         let end = clock(), minutes = Int(min(1441, end.timeIntervalSince(activeWorkSession.start) / 60))
-        let session = WorkSession(taskID: activeWorkSession.taskID, taskTitle: title(for: activeWorkSession.taskID),
+        var session = WorkSession(taskID: activeWorkSession.taskID, taskTitle: title(for: activeWorkSession.taskID),
             start: activeWorkSession.start, end: end, actualMinutes: minutes)
+        if let identifier = task(for: activeWorkSession.taskID)?.reminderIdentifier, let record = reminders?.record(for: identifier) {
+            session.reminderExternalIdentifier = record.externalIdentifier; session.reminderOccurrenceKey = record.occurrenceKey
+        }
         try session.validate()
         workSessions.append(session); self.activeWorkSession = nil; recalculate()
     }
-    func cancelWorkTimer() { activeWorkSession = nil; savePlan() }
-    func deleteWorkSession(id: UUID) { workSessions.removeAll { $0.id == id }; recalculate() }
+    func cancelWorkTimer() {
+        guard !isBackupRecoveryRequired else { return }
+        activeWorkSession = nil; savePlan()
+    }
+    func deleteWorkSession(id: UUID) {
+        guard !isBackupRecoveryRequired else { return }
+        workSessions.removeAll { $0.id == id }; recalculate()
+    }
 
 
     func setLocalOptimization(_ enabled: Bool) {

@@ -40,8 +40,12 @@ struct WorkloadRoutineView: View {
                     Toggle("iCloud自動同期", isOn: Binding(get: { model.syncState.isEnabled }, set: { model.setSyncEnabled($0) }))
                         .disabled(!model.canEnableSync)
                     if !model.canEnableSync {
-                        Text("現在の署名ではiCloud同期を利用できません。Developer Program・CloudKit設定が必要です。JSONバックアップで受け渡せます。")
+                        Text("iCloud同期にはCloudKit対応の署名と読み書きできる保存先が必要です。現在利用できない場合は、JSONバックアップで受け渡せます。設定手順は実装報告書を参照してください。")
                             .font(.caption).foregroundStyle(.secondary)
+                    }
+                    if !model.syncState.conflictKeys.isEmpty {
+                        Text("競合履歴: \(model.syncState.conflictKeys.count)件。更新日時の新しい内容を採用しています。") .font(.caption).foregroundStyle(.orange)
+                        Button("競合履歴を確認済みにする") { model.acknowledgeSyncConflicts() }
                     }
                     if let message = model.syncMessage { Text(message).font(.caption) }
                     if model.isSyncing { ProgressView("同期中…") }

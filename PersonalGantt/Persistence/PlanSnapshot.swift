@@ -43,7 +43,11 @@ nonisolated struct PlanSnapshot: Codable, Equatable, Sendable {
         let taskIDs = Set(tasks.map(\.id))
         let knownIDs = taskIDs.union(archivedTitles.keys)
         guard (1...4).contains(version) else { throw PlanStorageError.unsupportedVersion }
-        if let syncState { guard version >= 4, (try? syncState.validate()) != nil else { throw PlanStorageError.invalidSnapshot } }
+        if let syncState {
+            guard version >= 4, (try? syncState.validate()) != nil,
+                  syncState.records.values.allSatisfy({ (try? SyncPayloadValidator.validate($0)) != nil })
+            else { throw PlanStorageError.invalidSnapshot }
+        }
         if version < 3 && calendarCoverage != nil { throw PlanStorageError.invalidSnapshot }
         if let coverage = calendarCoverage {
             guard validDate(coverage.start), validDate(coverage.end), coverage.start < coverage.end,

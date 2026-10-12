@@ -16,11 +16,17 @@ import CloudKit
         #endif
     }
     func exchange(_ records: [SyncRecord]) async throws -> [SyncRecord] {
+        for record in records {
+            try SyncState.validate(record)
+            try SyncPayloadValidator.validate(record)
+        }
         var cloud: [String: CKRecord] = [:]
         var page = try await database.records(matching: CKQuery(recordType: "PersonalGanttSync", predicate: NSPredicate(value: true)))
         while true {
+            try _Concurrency.Task.checkCancellation()
             for (_, result) in page.matchResults {
                 let record = try result.get()
+                _ = try decode(record)
                 guard cloud.count < 10000 else { throw SyncError.invalidData }
                 cloud[record.recordID.recordName] = record
             }
@@ -28,11 +34,12 @@ import CloudKit
             page = try await database.records(continuingMatchFrom: cursor)
         }
         for local in records.sorted(by: { $0.key < $1.key }) {
-            try SyncState.validate(local)
+            try _Concurrency.Task.checkCancellation()
             var existing = cloud[local.key]
             for attempt in 0..<3 {
                 if let existing {
                     let remote = try decode(existing)
+                    if remote.revision == local.revision && remote != local { throw SyncError.invalidData }
                     if remote.revision >= local.revision { break }
                 }
                 let record = existing ?? CKRecord(recordType: "PersonalGanttSync", recordID: CKRecord.ID(recordName: local.key))
@@ -50,6 +57,7 @@ import CloudKit
         guard let data = record["payload"] as? Data, data.count <= 2_000_000 else { throw SyncError.invalidData }
         let value = try JSONDecoder().decode(SyncRecord.self, from: data)
         try SyncState.validate(value)
+        try SyncPayloadValidator.validate(value)
         guard value.key == record.recordID.recordName else { throw SyncError.invalidData }
         return value
     }
