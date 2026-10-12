@@ -20,6 +20,7 @@ final class ScheduleViewModel {
     private(set) var activeWorkSession: ActiveWorkSession?
     private(set) var workSessionMessage: String?
     private(set) var syncState = SyncState()
+    private(set) var localSync: LocalSyncTransport?
     private(set) var syncMessage: String?
     private(set) var isSyncing = false
     @ObservationIgnored private var syncPending = false
@@ -100,6 +101,7 @@ final class ScheduleViewModel {
         let deviceID = UserDefaults.standard.string(forKey: "backupDeviceID").flatMap(UUID.init(uuidString:)) ?? UUID()
         UserDefaults.standard.set(deviceID.uuidString, forKey: "backupDeviceID")
         configureBackup(reminderStore: reminderStore, journal: journal, deviceID: deviceID)
+        configureLocalSync()
     }
 
     func attachReminders(provider: any ReminderProviding, storage: any ReminderMetadataStoring) {
@@ -213,6 +215,7 @@ final class ScheduleViewModel {
     func retryPlanSave() { savePlan() }
 
     private func savePlan() {
+        let previous = syncState.records
         captureSyncChanges()
         guard let planStore, !isPlanStorageBlocked else { return }
         let snapshot = currentPlanSnapshot()
@@ -220,6 +223,7 @@ final class ScheduleViewModel {
             try planStore.save(snapshot)
             lastPlanSave = snapshot.savedAt
             persistenceMessage = nil
+            if previous != syncState.records { localSync?.localRecordsDidChange() }
         } catch {
             persistenceMessage = storageReason(error) + " 最新の変更は未保存です。アプリを終了する前に「保存を再試行」してください。"
         }
@@ -284,11 +288,64 @@ final class ScheduleViewModel {
         } while writebackPending && isApplicationActive && writebackState.enabled && !_Concurrency.Task.isCancelled
     }
 
+    var canEnableLocalSync: Bool { planStore != nil && !isPlanStorageBlocked && !isBackupRecoveryRequired }
+    func configureLocalSync(link: (any LocalSyncLink)? = nil, store: (any LocalSyncPreferenceStoring)? = nil) {
+        let name = MultipeerLocalLink.deviceName
+        localSync = LocalSyncTransport(deviceID: syncState.deviceID, displayName: name,
+            link: link ?? MultipeerLocalLink(deviceID: syncState.deviceID, name: name),
+            store: store ?? LocalSyncKeychainPreferences(),
+            snapshot: { [weak self] in
+                guard let self, self.canEnableLocalSync, self.persistenceMessage == nil else { throw LocalSyncError.storage }
+                self.captureSyncChanges()
+                return Array(self.syncState.records.values)
+            }, apply: { [weak self] incoming in
+                guard let self else { throw LocalSyncError.storage }
+                try self.applyLocalSyncRecords(incoming)
+            })
+        if localSync?.preferences.enabled == true { setSyncEnabled(false) }
+        #if os(macOS)
+        localSync?.setAvailable(canEnableLocalSync)
+        #endif
+    }
+    func setLocalSyncEnabled(_ enabled: Bool) {
+        guard canEnableLocalSync else { return }
+        savePlan() // Persist the device UUID before exposing a network identity.
+        guard persistenceMessage == nil else { return }
+        if enabled { setSyncEnabled(false) }
+        localSync?.setEnabled(enabled)
+    }
+    func beginLocalPairing() {
+        setLocalSyncEnabled(true)
+        guard canEnableLocalSync, persistenceMessage == nil else { return }
+        localSync?.beginPairing()
+    }
+    /// Remote ACKs may be sent only after this complete checkpoint saves.
+    /// A failed save rolls back the model synchronously, before UI observers run.
+    func applyLocalSyncRecords(_ incoming: [SyncRecord]) throws {
+        guard canEnableLocalSync, persistenceMessage == nil else { throw LocalSyncError.storage }
+        let before = currentPlanSnapshot(), previousHorizon = planningHorizon
+        let previousRecalculation = lastRecalculation, previousAvailability = lastAvailabilitySettings
+        let previousConflicts = protectedConflictCount, previousSave = lastPlanSave
+        try mergeSyncRecords(incoming)
+        guard persistenceMessage == nil else {
+            tasks = before.tasks; routines = before.routines ?? []; workSessions = before.workSessions ?? []
+            activeWorkSession = before.activeWorkSession; workloadSettings = before.workloadSettings ?? .unlimited
+            schedulingSettings = before.schedulingSettings ?? .default; syncState = before.syncState ?? SyncState()
+            reminderTaskIDs = before.reminderTaskIDs; archivedTitles = before.archivedTitles
+            result = SchedulingResult(blocks: before.blocks, unscheduledTaskIDs: before.unscheduledTaskIDs)
+            availableSlots = before.slots; planningHorizon = previousHorizon
+            planningInterval = previousHorizon?.interval; lastAvailabilitySettings = previousAvailability
+            lastRecalculation = previousRecalculation; protectedConflictCount = previousConflicts; lastPlanSave = previousSave
+            throw LocalSyncError.storage
+        }
+    }
+
     var canEnableSync: Bool { syncTransport != nil && !isPlanStorageBlocked && !isBackupRecoveryRequired }
     func attachSyncTransport(_ transport: any SyncTransport) { syncTransport = transport }
     func setSyncEnabled(_ enabled: Bool) {
         guard !isBackupRecoveryRequired else { return }
         guard !enabled || canEnableSync else { syncMessage = SyncError.unavailable.localizedDescription; return }
+        if enabled { localSync?.setEnabled(false) }
         syncState.isEnabled = enabled
         savePlan()
     }
@@ -590,6 +647,7 @@ final class ScheduleViewModel {
     func applicationDidBecomeActive() async {
         guard !isApplicationActive else { return }
         isApplicationActive = true
+        localSync?.setAvailable(canEnableLocalSync)
         if isLoadingCalendars {
             automaticRefreshPending = true
             await withCheckedContinuation { automaticRefreshWaiters.append($0) }
@@ -613,6 +671,9 @@ final class ScheduleViewModel {
 
     func applicationDidBecomeInactive() {
         isApplicationActive = false
+        #if !os(macOS)
+        localSync?.setAvailable(false)
+        #endif
         BackgroundCalendarRefresh.scheduleNext()
     }
 

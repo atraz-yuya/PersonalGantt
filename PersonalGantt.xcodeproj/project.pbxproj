@@ -6,6 +6,10 @@
 	objectVersion = 110;
 	objects = {
 
+/* Begin PBXBuildFile section */
+		A10500000000000000000001 /* X509 in Frameworks */ = {isa = PBXBuildFile; productRef = A10500000000000000000002 /* X509 */; };
+/* End PBXBuildFile section */
+
 /* Begin PBXContainerItemProxy section */
 		B76CF5F7306966F000E617C5 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
@@ -51,6 +55,7 @@
 		B76CF5E6306966EE00E617C5 /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			files = (
+				A10500000000000000000001 /* X509 in Frameworks */,
 			);
 		};
 		B76CF5F3306966F000E617C5 /* Frameworks */ = {
@@ -103,6 +108,9 @@
 				B76CF5EB306966EE00E617C5 /* PersonalGantt */,
 			);
 			name = PersonalGantt;
+			packageProductDependencies = (
+				A10500000000000000000002 /* X509 */,
+			);
 			productName = PersonalGantt;
 			productReference = B76CF5E9306966EE00E617C5 /* PersonalGantt.app */;
 			productType = "com.apple.product-type.application";
@@ -187,6 +195,9 @@
 			);
 			mainGroup = B76CF5E0306966EE00E617C5;
 			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				A10500000000000000000003 /* XCRemoteSwiftPackageReference "swift-certificates" */,
+			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = B76CF5EA306966EE00E617C5 /* Products */;
 			projectDirPath = "";
@@ -587,6 +598,25 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		A10500000000000000000003 /* XCRemoteSwiftPackageReference "swift-certificates" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/apple/swift-certificates.git";
+			requirement = {
+				kind = exactVersion;
+				version = 1.21.0;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		A10500000000000000000002 /* X509 */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = A10500000000000000000003 /* XCRemoteSwiftPackageReference "swift-certificates" */;
+			productName = X509;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = B76CF5E1306966EE00E617C5 /* Project object */;
 	validationLevel = 1;

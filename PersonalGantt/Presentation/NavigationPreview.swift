@@ -9,6 +9,7 @@ import Foundation
         let deadline = QuickDeadline.tomorrow.date(reference: Date(), calendar: calendar) ?? Date()
         let model = ScheduleViewModel(tasks: [], calendarProvider: PreviewCalendar(), calendar: calendar)
         model.attachPlanStore(PreviewPlan())
+        model.configureLocalSync(link: PreviewLocalLink(), store: PreviewLocalPreferences())
         model.attachReminders(provider: PreviewReminders(deadline: deadline), storage: PreviewMetadata())
         _ = try? model.addTask(TaskDraft(title: "UI確認用の作業", estimatedMinutesText: "60", deadline: deadline))
         return model
@@ -53,6 +54,39 @@ import Foundation
     }
     func setCompletion(identifier: String, listID: String, expected: Bool, completed: Bool) async throws -> ReminderRecord {
         throw ReminderServiceError.readOnly
+    }
+}
+@MainActor private final class PreviewLocalPreferences: LocalSyncPreferenceStoring {
+    var value = LocalSyncPreferences()
+    func load() throws -> LocalSyncPreferences { value }
+    func save(_ value: LocalSyncPreferences) throws { self.value = value }
+}
+@MainActor private final class PreviewLocalLink: LocalSyncLink {
+    var onEvent: ((LocalLinkEvent) -> Void)?
+    let certificateHash = Data(repeating: 1, count: 32)
+    let remoteHash = Data(repeating: 2, count: 32)
+    let peer = LocalPeer(id: UUID(uuidString: "00000000-0000-0000-0000-000000000042")!, name: "iPhone（UI確認用）", pairing: true)
+    func start(pairing: Bool, trusted: LocalTrustedDevice?) throws {
+        if pairing { _Concurrency.Task { @MainActor [weak self] in guard let self else { return }; self.onEvent?(.found(self.peer)) } }
+    }
+    func updateTrust(_ trusted: LocalTrustedDevice) { }
+    func stop() { }
+    func disconnect() { }
+    func connect(_ peer: LocalPeer) throws { onEvent?(.connected(peer, certificateHash: remoteHash)) }
+    func send(_ data: Data) throws {
+        let request = try LocalSyncEnvelope.decode(data)
+        let reply: LocalSyncEnvelope?
+        switch request.kind {
+        case .hello: reply = LocalSyncEnvelope(kind: .hello, hello: LocalHello(deviceID: peer.id, name: peer.name, nonce: UUID(), pairing: true))
+        case .approve: reply = LocalSyncEnvelope(kind: .approve)
+        case .ready: reply = LocalSyncEnvelope(kind: .ready)
+        case .records: reply = LocalSyncEnvelope(messageID: request.messageID, kind: .ack, records: request.records)
+        default: reply = nil
+        }
+        if let reply {
+            let bytes = try reply.encoded()
+            _Concurrency.Task { @MainActor [weak self] in self?.onEvent?(.received(bytes)) }
+        }
     }
 }
 #endif
