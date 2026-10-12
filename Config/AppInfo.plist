@@ -3,4 +3,10 @@
 <plist version="1.0"><dict>
 <key>BGTaskSchedulerPermittedIdentifiers</key><array><string>com.atraz.PersonalGantt.calendar-refresh</string></array>
 <key>UIBackgroundModes</key><array><string>fetch</string></array>
+	<key>NSLocalNetworkUsageDescription</key>
+	<string>MacとiPhoneのPersonalGanttで、確認した端末とタスク・ルーティン・実績・設定を同期するために使用します。</string>
+	<key>NSBonjourServices</key>
+	<array>
+		<string>_pgantt-sync._tcp</string>
+	</array>
 </dict></plist>

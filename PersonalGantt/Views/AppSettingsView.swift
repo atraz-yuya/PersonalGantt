@@ -21,9 +21,9 @@ struct AppSettingsView: View {
                     }
                 }
                 NavigationLink {
-                    WorkloadRoutineView(model: model, page: .sync, embedded: true)
+                    DeviceSyncSettingsView(model: model)
                 } label: {
-                    settingsRow("端末間の同期", symbol: "icloud", status: model.syncState.isEnabled ? "ON" : "OFF")
+                    settingsRow("端末間の同期", symbol: "icloud", status: model.localSync?.preferences.enabled == true ? "ローカル ON" : model.syncState.isEnabled ? "iCloud ON" : "OFF")
                 }.accessibilityIdentifier("settings-sync")
             }
             Section("カレンダー") {

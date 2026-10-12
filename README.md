@@ -7,7 +7,7 @@ Phase 6でApple Remindersの取り込み、入力待ち、所要時間設定、�
 Phase 7でToday・日別Timeline・日単位Gantt・Task詳細を追加しました。
 Siri / App Intentsから、タスク名・所要時間・締切を指定する直接追加経路を追加しました。
 日次の自動配置上限と、毎日・平日・曜日指定・毎週のルーティンを追加しました。
-Final Integrationで実績入力、長期作業の分散、優先度、Today改善、機会的Background Refresh、任意のGoogle書き戻し、ローカル最適化を統合しました。CloudKitの同期処理も実装していますが、現在の署名では無効です。
+Final Integrationで実績入力、長期作業の分散、優先度、Today改善、機会的Background Refresh、任意のGoogle書き戻し、ローカル最適化を統合しました。Mac/iPhone間のローカル自動同期を追加し、CloudKitの同期処理も選択肢として維持しています。初回の信頼登録は設定 → 連携 → 端末間の同期から行います。[ローカル同期の実装報告と実機手順](docs/LocalDeviceSync.md)を参照してください。
 最新UIは「今日 / 日別 / タスク / 追加 / 待ち」の5画面と日別稼働時間に対応しました。[5画面・稼働時間の実装報告](docs/FiveTabsActivityHours.md)、以前の[UI再設計の実装報告](docs/UINavigation.md)、機能本体の[Final Integration実装報告](docs/FinalIntegration.md)を参照してください。
 コード実装・合成データ検証に加え、本人のOAuthログインと実Google Calendarの取得・空き時間生成・手動RefreshをmacOSで確認済みです。
 
@@ -96,7 +96,7 @@ iPhoneなどコンパクト幅は「今日 / 日別 / タスク / 追加 / 待�
 | 実績 | WorkSessionを別保存。remaining = max(0, estimate - actual)。Task全体完了と区別。 |
 | 配置モード | 初期earliestFirst、任意balanced。ローカル最適化で最大2候補を評価可能。 |
 | Google書き戻し | 初期OFF。明示ONと追加scope同意時のみ専用Calendarの未来枠を発行。複数端末では1台だけON。 |
-| 自動同期 | CloudKit Private Databaseの実装済み。現在の署名では無効。JSONバックアップを利用可能。 |
+| 自動同期 | 初回確認したMac/iPhone間のローカル自動同期。iPhoneはforeground、Macはアプリ起動中。CloudKitは別途設定が必要。JSONバックアップを維持。 |
 | 入力 | title、1分以上の整数estimatedMinutes、deadline。開始/終了はSchedulerが決める。 |
 | 失敗 | 取得・権限・不正応答の失敗は直前の結果を保持し理由を表示。 |
 | Refresh | 起動・前面復帰・前面中の日付切替・選択反映・手動Refresh・前面中の期間延長で取得。iOS/iPadOSは機会的Background App Refreshも要求。実行時刻はOS判断。Siriの保存は通信不要。 |
@@ -107,7 +107,7 @@ iPhoneなどコンパクト幅は「今日 / 日別 / タスク / 追加 / 待�
 Calendar未選択の初回は活動時間のみの仮配置です。選択済みCalendarが未取得の場合は取得まで配置を待ちます。
 開始済みの計画は再起動後も保護し、未来の未完了作業だけを再配置します。履歴は自動削除しません。
 「設定」→「データ」→「バックアップと保存」で最終保存時刻を確認できます。保存失敗時はTodayに短い警告、設定に詳細と「保存を再試行」を表示します。
-読み込めない保存データは上書きしません。CloudKit同期のコードは用意していますが、現在のProvisioning Profileには必要なentitlementがないため有効化していません。Developer ProgramとCloudKit設定が必要です。無料Personal Teamでの利用を維持しています。
+読み込めない保存データは上書きしません。ローカル同期は端末固有のTLS証明書と両端末の確認で信頼を登録し、作業の元データだけを送ります。ペアリング情報・秘密鍵はバックアップに含めません。CloudKitには追加のDeveloper Program/CloudKit設定が必要ですが、ローカル同期はCloudKitを条件にしません。
 設定の「バックアップと保存」でJSONを書き出し、Mac・iPhone・iPadへ手動で渡せます。
 受け取り先で「バックアップを読み込む」を選び、内容を確認してから復元します。Task・設定・履歴を引き継ぎ、認証Tokenは含めません。
 別端末のReminder設定は外部IDが安全に一致したものだけ適用します。詳細は[バックアップと受け渡し手順](docs/BackupTransfer.md)を参照してください。
@@ -115,6 +115,8 @@ Calendar未選択の初回は活動時間のみの仮配置です。選択済み
 対応OS設定はmacOS/iOS/visionOS 27.0のままです。
 
 ## 検証
+
+2026-10-12、ローカル同期対応の全567ケース成功（既存524＋追加43）。macOS/iOS Simulatorビルド成功。合成peerで初回確認・承認・同期済み表示・解除確認のMac UIを操作確認しました。実Mac/iPhone間の無線通信・OS許可・初回ペアリングは未確認です。[検証範囲と実機手順](docs/LocalDeviceSync.md)を参照してください。
 
 2026-10-12、5画面・稼働時間対応の全524ケース成功（既存505＋追加19）。macOS/iOS Simulatorビルド成功。合成データのMacアプリで追加・削除確認・待ちの期限補完と配置・今日の時間変更と即時再計算・設定の通常時間と日別上書きを操作確認しました。[実装報告](docs/FiveTabsActivityHours.md)を参照してください。iPhone/iPad実機確認は未実施です。
 
@@ -165,6 +167,7 @@ EventKit Calendarの取得・権限要求は削除済みです。EventKitはRemi
 - [Siri / App Intentsの構成・検証・実機確認手順](docs/SiriAppIntents.md)
 - [日次上限・ルーティンの構成・保存互換性・確認手順](docs/DailyWorkloadRoutines.md)
 - [Final Integrationの仕様・検証・CloudKit/Google追加設定・実機確認手順](docs/FinalIntegration.md)
+- [Mac・iPhoneのローカル自動同期と初回ペアリング手順](docs/LocalDeviceSync.md)
 - [サイドバー・入力待ち・設定集約のUI再設計](docs/UINavigation.md)
 - [Phase 4の履歴](docs/Phase4.md)
 - [Phase 3の履歴](docs/Phase3.md)
