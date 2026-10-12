@@ -23,7 +23,7 @@
 
 MCNearbyServiceAdvertiserとMCNearbyServiceBrowserを両端末で利用し、1つのMCSessionで1対1の同期を行います。serviceTypeは定数 `pgantt-sync`、Bonjourは `_pgantt-sync._tcp`、暗号化は `.required`です。UUIDの小さい側を自動接続の開始側とし、相互inviteの接続ループを避けます。新規ペアリングは2分間だけ受け付けます。
 
-各端末でSecurityのP-256秘密鍵を生成し、Appleのswift-certificatesで自己署名X.509証明書を作成します。共通秘密鍵の埋め込みや独自暗号方式は使用しません。TLS identityをMCSessionへ渡し、証明書callbackで信頼済みfingerprintを照合します。初回はペアリング操作中の候補だけTLS接続を許可し、HELLO・承認・READY以外の作業データを承認前に送受信しません。
+各端末でSecurityのRSA 2048秘密鍵を生成し、Appleのswift-certificatesで自己署名X.509証明書を作成します。共通秘密鍵の埋め込みや独自暗号方式は使用しません。TLS identityをMCSessionへ渡し、証明書callbackで信頼済みfingerprintを照合します。初回はペアリング操作中の候補だけTLS接続を許可し、HELLO・承認・READY以外の作業データを承認前に送受信しません。旧EC方式からの修正・実行時検証・再ペアリング手順は[DTLS修正報告](LocalSyncDTLS.md)を参照してください。
 
 双方のUUID・新しいnonce・実際のTLS証明書hashから、128-bit（4桁×8組）の同一確認コードを表示します。両端末での明示的な許可が揃い、信頼情報の保存が成功した後にREADYを交換します。UUIDを偽るだけでは再接続できません。証明書が変わった相手を自動で再信頼しません。
 
@@ -77,7 +77,7 @@ iPhoneではforegroundでだけ通信し、background/inactiveで切断します
 
 Macの別Bundle IDのDebug確認用コピーで、メモリ保存・合成peerのみを使い、設定 → ペアリング検索 → peer選択 → 確認コード → 承認 → 同期済み/最終同期 → 解除確認/キャンセルまで操作確認しました。このUI確認ではMultipeer通信・実Keychain・実Taskを使用していません。
 
-実Mac Neo ↔ iPhoneの無線通信・初回ペアリングは未確認です。iPhoneはユーザーの端末操作・OS許可・両画面での確認が必要です。実機成功として報告していません。
+その後、実Mac Neo/iPhoneのKeychain identity検証とdiscovery・connectingを確認しました。テザリング環境で実機間の接続が切れるため、確認コード表示は未達です。Mac内の実MCSession同士ではRSAへの修正後に証明書callback・connected・HELLO・確認コード生成が成功しました。実機間成功としては報告していません。[最新の検証範囲](LocalSyncDTLS.md)を参照してください。
 
 ## Mac Neo + iPhoneの実機確認手順
 

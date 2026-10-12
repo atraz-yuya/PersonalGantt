@@ -232,6 +232,7 @@ import CryptoKit
     }
     private func handle(_ envelope: LocalSyncEnvelope, raw: Data) throws {
         guard currentPeer != nil else { throw LocalSyncError.untrusted }
+        LocalSyncDiagnostics.log("protocol.received", peer: currentPeer?.name, detail: "kind=\(envelope.kind.rawValue)")
         switch envelope.kind {
         case .hello:
             guard remoteHello == nil, let hello = envelope.hello, hello.deviceID == currentPeer?.id, let localHello, let remoteHash else { throw LocalSyncError.untrusted }
@@ -243,6 +244,7 @@ import CryptoKit
                 pairingPeer = currentPeer
                 pairingCode = LocalSyncEnvelope.pairingCode(local: localHello, localHash: link.certificateHash, remote: hello, remoteHash: remoteHash)
                 status = "両端末で確認待ち"
+                LocalSyncDiagnostics.log("pairing.codeDisplayed", peer: currentPeer?.name, detail: "workDataAllowed=false")
             }
         case .approve:
             guard pairingPeer != nil else { throw LocalSyncError.untrusted }
@@ -294,7 +296,10 @@ import CryptoKit
         var next = preferences; next.lastSync = Date(); try store.save(next); preferences = next
         status = "同期済み"; message = nil
     }
-    private func send(_ envelope: LocalSyncEnvelope) throws { try link.send(envelope.encoded()) }
+    private func send(_ envelope: LocalSyncEnvelope) throws {
+        try link.send(envelope.encoded())
+        LocalSyncDiagnostics.log("protocol.sent", peer: currentPeer?.name, detail: "kind=\(envelope.kind.rawValue)")
+    }
     private func finishRequest(_ result: Result<[SyncRecord], any Error>) {
         guard let promise = continuation else { pendingID = nil; return }
         continuation = nil; pendingID = nil; timeout?.cancel(); timeout = nil; promise.resume(with: result)

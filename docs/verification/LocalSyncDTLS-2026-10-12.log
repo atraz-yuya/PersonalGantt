@@ -1,0 +1,87 @@
+Mac MCSession: EC failure
+[LocalSync] identity.validated peer=- fingerprint=1360fa6a83499368bf7e4a4a3de88748a9445b68a62d03800e8f18a4e1f984c2 algorithm=EC256 firstType=SecIdentity publicKeysMatch=true signatureVerified=true
+[LocalSync] session.created peer=Mac Neo fingerprint=1360fa6a83499368bf7e4a4a3de88748a9445b68a62d03800e8f18a4e1f984c2 firstType=SecIdentity encryption=required delegateAttached=true
+[LocalSync] identity.validated peer=- fingerprint=1360fa6a83499368bf7e4a4a3de88748a9445b68a62d03800e8f18a4e1f984c2 algorithm=EC256 firstType=SecIdentity publicKeysMatch=true signatureVerified=true
+[LocalSync] session.created peer=Mac Neo fingerprint=1360fa6a83499368bf7e4a4a3de88748a9445b68a62d03800e8f18a4e1f984c2 firstType=SecIdentity encryption=required delegateAttached=true
+[LocalSync] identity.validated peer=- fingerprint=180876beedb2a36ed908f3fc43a03e2f319436bbed49daf97041480917815a81 algorithm=EC256 firstType=SecIdentity publicKeysMatch=true signatureVerified=true
+[LocalSync] session.created peer=Mac loopback fingerprint=180876beedb2a36ed908f3fc43a03e2f319436bbed49daf97041480917815a81 firstType=SecIdentity encryption=required delegateAttached=true
+[LocalSync] identity.validated peer=- fingerprint=180876beedb2a36ed908f3fc43a03e2f319436bbed49daf97041480917815a81 algorithm=EC256 firstType=SecIdentity publicKeysMatch=true signatureVerified=true
+[LocalSync] session.created peer=Mac loopback fingerprint=180876beedb2a36ed908f3fc43a03e2f319436bbed49daf97041480917815a81 firstType=SecIdentity encryption=required delegateAttached=true
+[LocalSync] discovery.found peer=Mac Neo fingerprint=- pairing=false
+[LocalSync] discovery.found peer=iPhone fingerprint=- pairing=false
+[LocalSync] discovery.found peer=Mac Neo fingerprint=- pairing=false
+[LocalSync] discovery.found peer=iPhone fingerprint=- pairing=false
+[LocalSync] discovery.found peer=Mac loopback fingerprint=- pairing=true
+[LocalSync] invitation.sent peer=Mac loopback fingerprint=-
+[LocalSync] discovery.found peer=Mac Neo fingerprint=- pairing=true
+[LocalSync] invitation.accepted peer=Mac Neo fingerprint=-
+[LocalSync] session.state peer=Mac Neo fingerprint=- 0->1 certificateCallback=false expected=true
+[LocalSync] session.state peer=Mac loopback fingerprint=- 0->1 certificateCallback=false expected=true
+[LocalSync] session.state peer=Mac Neo fingerprint=- 1->0 certificateCallback=false expected=true
+[LocalSync] session.state peer=Mac loopback fingerprint=- 1->0 certificateCallback=false expected=true
+
+Mac MCSession: RSA success (final default identity path; matching codes verified in UI)
+[LocalSync] identity.validated peer=- fingerprint=f1e2a5fca416e2925c1b0cf16c91b171d45c1fb20006b0efbf1dbc79035e6843 algorithm=RSA2048 firstType=SecIdentity publicKeysMatch=true signatureVerified=true
+[LocalSync] session.created peer=Mac Neo fingerprint=f1e2a5fca416e2925c1b0cf16c91b171d45c1fb20006b0efbf1dbc79035e6843 firstType=SecIdentity encryption=required delegateAttached=true
+[LocalSync] identity.validated peer=- fingerprint=f1e2a5fca416e2925c1b0cf16c91b171d45c1fb20006b0efbf1dbc79035e6843 algorithm=RSA2048 firstType=SecIdentity publicKeysMatch=true signatureVerified=true
+[LocalSync] session.created peer=Mac Neo fingerprint=f1e2a5fca416e2925c1b0cf16c91b171d45c1fb20006b0efbf1dbc79035e6843 firstType=SecIdentity encryption=required delegateAttached=true
+[LocalSync] identity.validated peer=- fingerprint=9445e969675bd5d4db7044e50f4d906971917412f268eb708cde6bec818af3fe algorithm=RSA2048 firstType=SecIdentity publicKeysMatch=true signatureVerified=true
+[LocalSync] session.created peer=Mac loopback fingerprint=9445e969675bd5d4db7044e50f4d906971917412f268eb708cde6bec818af3fe firstType=SecIdentity encryption=required delegateAttached=true
+[LocalSync] identity.validated peer=- fingerprint=9445e969675bd5d4db7044e50f4d906971917412f268eb708cde6bec818af3fe algorithm=RSA2048 firstType=SecIdentity publicKeysMatch=true signatureVerified=true
+[LocalSync] session.created peer=Mac loopback fingerprint=9445e969675bd5d4db7044e50f4d906971917412f268eb708cde6bec818af3fe firstType=SecIdentity encryption=required delegateAttached=true
+[LocalSync] discovery.found peer=Mac Neo fingerprint=- pairing=false
+[LocalSync] discovery.found peer=Mac Neo fingerprint=- pairing=false
+[LocalSync] discovery.found peer=Mac loopback fingerprint=- pairing=true
+[LocalSync] discovery.found peer=Mac Neo fingerprint=- pairing=true
+[LocalSync] invitation.sent peer=Mac loopback fingerprint=-
+[LocalSync] invitation.accepted peer=Mac Neo fingerprint=-
+[LocalSync] session.state peer=Mac Neo fingerprint=- notConnected->connecting certificateCallback=false expected=true
+[LocalSync] session.state peer=Mac loopback fingerprint=- notConnected->connecting certificateCallback=false expected=true
+[LocalSync] certificate.callback peer=Mac loopback fingerprint=9445e969675bd5d4db7044e50f4d906971917412f268eb708cde6bec818af3fe chainCount=1
+[LocalSync] certificate.accepted peer=Mac loopback fingerprint=9445e969675bd5d4db7044e50f4d906971917412f268eb708cde6bec818af3fe reason=pairingCandidate
+[LocalSync] certificate.callback peer=Mac Neo fingerprint=f1e2a5fca416e2925c1b0cf16c91b171d45c1fb20006b0efbf1dbc79035e6843 chainCount=1
+[LocalSync] certificate.accepted peer=Mac Neo fingerprint=f1e2a5fca416e2925c1b0cf16c91b171d45c1fb20006b0efbf1dbc79035e6843 reason=pairingCandidate
+[LocalSync] session.state peer=Mac loopback fingerprint=9445e969675bd5d4db7044e50f4d906971917412f268eb708cde6bec818af3fe connecting->connected certificateCallback=true expected=true
+[LocalSync] protocol.sent peer=Mac loopback fingerprint=- kind=hello
+[LocalSync] session.state peer=Mac Neo fingerprint=f1e2a5fca416e2925c1b0cf16c91b171d45c1fb20006b0efbf1dbc79035e6843 connecting->connected certificateCallback=true expected=true
+[LocalSync] protocol.sent peer=Mac Neo fingerprint=- kind=hello
+[LocalSync] protocol.received peer=Mac Neo fingerprint=- kind=hello
+[LocalSync] pairing.codeDisplayed peer=Mac Neo fingerprint=- workDataAllowed=false
+[LocalSync] protocol.received peer=Mac loopback fingerprint=- kind=hello
+[LocalSync] pairing.codeDisplayed peer=Mac loopback fingerprint=- workDataAllowed=false
+[LocalSync] discovery.found peer=iPhone fingerprint=- pairing=false
+[LocalSync] discovery.found peer=iPhone fingerprint=- pairing=false
+
+Physical Mac reverse invitation: RSA
+[LocalSync] identity.validated peer=- fingerprint=f1e2a5fca416e2925c1b0cf16c91b171d45c1fb20006b0efbf1dbc79035e6843 algorithm=RSA2048 firstType=SecIdentity publicKeysMatch=true signatureVerified=true
+[LocalSync] session.created peer=Mac Neo fingerprint=f1e2a5fca416e2925c1b0cf16c91b171d45c1fb20006b0efbf1dbc79035e6843 firstType=SecIdentity encryption=required delegateAttached=true
+[LocalSync] identity.validated peer=- fingerprint=f1e2a5fca416e2925c1b0cf16c91b171d45c1fb20006b0efbf1dbc79035e6843 algorithm=RSA2048 firstType=SecIdentity publicKeysMatch=true signatureVerified=true
+[LocalSync] session.created peer=Mac Neo fingerprint=f1e2a5fca416e2925c1b0cf16c91b171d45c1fb20006b0efbf1dbc79035e6843 firstType=SecIdentity encryption=required delegateAttached=true
+[LocalSync] discovery.found peer=Mac Neo fingerprint=- pairing=false
+[LocalSync] invitation.accepted peer=iPhone fingerprint=-
+[LocalSync] session.state peer=iPhone fingerprint=- notConnected->connecting certificateCallback=false expected=true
+[LocalSync] discovery.found peer=iPhone fingerprint=- pairing=false
+[LocalSync] session.state peer=iPhone fingerprint=- connecting->notConnected certificateCallback=false expected=true
+[LocalSync] identity.validated peer=- fingerprint=f1e2a5fca416e2925c1b0cf16c91b171d45c1fb20006b0efbf1dbc79035e6843 algorithm=RSA2048 firstType=SecIdentity publicKeysMatch=true signatureVerified=true
+[LocalSync] session.created peer=Mac Neo fingerprint=f1e2a5fca416e2925c1b0cf16c91b171d45c1fb20006b0efbf1dbc79035e6843 firstType=SecIdentity encryption=required delegateAttached=true
+
+Physical iPhone reverse invitation: RSA
+[LocalSync] identity.validated peer=- fingerprint=7f51118ac87e0f74a72cfb214c53b06d2a44500c88bc1f719983b793160df32f algorithm=RSA2048 firstType=SecIdentity publicKeysMatch=true signatureVerified=true
+[LocalSync] session.created peer=iPhone fingerprint=7f51118ac87e0f74a72cfb214c53b06d2a44500c88bc1f719983b793160df32f firstType=SecIdentity encryption=required delegateAttached=true
+[LocalSync] identity.validated peer=- fingerprint=7f51118ac87e0f74a72cfb214c53b06d2a44500c88bc1f719983b793160df32f algorithm=RSA2048 firstType=SecIdentity publicKeysMatch=true signatureVerified=true
+[LocalSync] session.created peer=iPhone fingerprint=7f51118ac87e0f74a72cfb214c53b06d2a44500c88bc1f719983b793160df32f firstType=SecIdentity encryption=required delegateAttached=true
+[LocalSync] discovery.found peer=Mac Neo fingerprint=- pairing=false
+[LocalSync] discovery.found peer=Mac Neo fingerprint=- pairing=true
+[LocalSync] invitation.sent peer=Mac Neo fingerprint=-
+[LocalSync] session.state peer=Mac Neo fingerprint=- notConnected->connecting certificateCallback=false expected=true
+[LocalSync] session.state peer=Mac Neo fingerprint=- connecting->notConnected certificateCallback=false expected=true
+[LocalSync] identity.validated peer=- fingerprint=7f51118ac87e0f74a72cfb214c53b06d2a44500c88bc1f719983b793160df32f algorithm=RSA2048 firstType=SecIdentity publicKeysMatch=true signatureVerified=true
+[LocalSync] session.created peer=iPhone fingerprint=7f51118ac87e0f74a72cfb214c53b06d2a44500c88bc1f719983b793160df32f firstType=SecIdentity encryption=required delegateAttached=true
+
+Normal Mac app: actual device identity
+[LocalSync] identity.validated peer=- fingerprint=85f79ee2dfc80365491fda6f58e3636a17b064e931b79bf179dcd4edc06c9576 algorithm=RSA2048 firstType=SecIdentity publicKeysMatch=true signatureVerified=true
+[LocalSync] session.created peer=Mac Neo fingerprint=85f79ee2dfc80365491fda6f58e3636a17b064e931b79bf179dcd4edc06c9576 firstType=SecIdentity encryption=required delegateAttached=true
+
+Normal iPhone app: actual device identity
+[LocalSync] identity.validated peer=- fingerprint=dc0d7a5344fb712f6d4d71fc7458f5ea02c4a42a35f6c5a6a69cf5f0f99abb9b algorithm=RSA2048 firstType=SecIdentity publicKeysMatch=true signatureVerified=true
+[LocalSync] session.created peer=iPhone fingerprint=dc0d7a5344fb712f6d4d71fc7458f5ea02c4a42a35f6c5a6a69cf5f0f99abb9b firstType=SecIdentity encryption=required delegateAttached=true
