@@ -1,8 +1,15 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<plist version="1.0"><dict>
-<key>BGTaskSchedulerPermittedIdentifiers</key><array><string>com.atraz.PersonalGantt.calendar-refresh</string></array>
-<key>UIBackgroundModes</key><array><string>fetch</string></array>
+<plist version="1.0">
+<dict>
+	<key>BGTaskSchedulerPermittedIdentifiers</key>
+	<array>
+		<string>com.atraz.PersonalGantt.calendar-refresh</string>
+	</array>
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>fetch</string>
+	</array>
 	<key>NSLocalNetworkUsageDescription</key>
 	<string>MacとiPhoneのPersonalGanttで、確認した端末とタスク・ルーティン・実績・設定を同期するために使用します。</string>
 	<key>NSBonjourServices</key>
@@ -10,4 +17,5 @@
 		<string>_pgantt-sync._tcp</string>
 		<string>_pgantt-link._tcp</string>
 	</array>
-</dict></plist>
+</dict>
+</plist>
