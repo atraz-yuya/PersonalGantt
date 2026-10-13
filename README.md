@@ -8,11 +8,13 @@ Phase 7でToday・日別Timeline・日単位Gantt・Task詳細を追加しまし
 Siri / App Intentsから、タスク名・所要時間・締切を指定する直接追加経路を追加しました。
 日次の自動配置上限と、毎日・平日・曜日指定・毎週のルーティンを追加しました。
 Routineの固定開始時刻、Task個別と全体共通の配置禁止時間にも対応しています。[時間制約の実装・検証報告](docs/SchedulingTimeConstraints.md)を参照してください。
+完了したTaskは「今日やること」のリストから消え、実績と履歴は残ります。時刻は`0930`→`09:30`のような4桁入力にも対応しています。[完了表示・時刻入力の検証報告](docs/TodayCompletionAndTimeInput.md)を参照してください。
 Final Integrationで実績入力、長期作業の分散、優先度、Today改善、機会的Background Refresh、任意のGoogle書き戻し、ローカル最適化を統合しました。Mac/iPhone間のローカル自動同期を追加し、CloudKitの同期処理も選択肢として維持しています。初回の信頼登録は設定 → 連携 → 端末間の同期から行います。[ローカル同期の実装報告と実機手順](docs/LocalDeviceSync.md)を参照してください。
 最新UIは「今日 / 日別 / タスク / 追加 / 待ち」の5画面と日別稼働時間に対応しました。[5画面・稼働時間の実装報告](docs/FiveTabsActivityHours.md)、以前の[UI再設計の実装報告](docs/UINavigation.md)、機能本体の[Final Integration実装報告](docs/FinalIntegration.md)を参照してください。
 コード実装・合成データ検証に加え、本人のOAuthログインと実Google Calendarの取得・空き時間生成・手動RefreshをmacOSで確認済みです。
 
 2026-10-14、時間制約追加後の全657ケースが成功。署名済みmacOS/iOS buildと、Mac・iPhoneで固定Routine、分割配置、共通禁止の競合、Reminder補助制約の双方向同期を確認しました。通常Wi-FiおよびUSBなしテザリングで「今すぐ同期」1回による反映を確認しています。
+同日の完了表示・4桁時刻入力の修正後は、追加25ケースを含め全682ケースが成功しています。
 
 ## 起動とGoogle設定
 

@@ -62,8 +62,8 @@ struct AvailabilityExclusionEditor: View {
                 }
             }
             Section("配置しない時間") {
-                TextField("開始（HH:mm）", text: $time.start).accessibilityIdentifier("exclusion-start")
-                TextField("終了（HH:mm、24:00まで）", text: $time.end).accessibilityIdentifier("exclusion-end")
+                ClockTimeTextField(title: "開始（例: 1800）", text: $time.start).accessibilityIdentifier("exclusion-start")
+                ClockTimeTextField(title: "終了（例: 1900、24:00まで）", text: $time.end, allowsEndOfDay: true).accessibilityIdentifier("exclusion-end")
                 Text("開始より後の終了時刻を指定してください。日をまたぐ禁止時間は、24:00までと翌日の0:00からに分けて設定します。")
                     .font(.caption).foregroundStyle(.secondary)
                 if time.window == nil || value.weekdays.isEmpty { Text("有効な曜日と時間範囲を設定してください。").foregroundStyle(.orange) }

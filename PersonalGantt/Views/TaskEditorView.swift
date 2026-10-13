@@ -5,6 +5,7 @@ struct TaskEditorView: View {
     @State private var editingExclusion: AvailabilityExclusion?
     @State private var draft: TaskDraft
     @State private var saveError: String?
+    @State private var deadlineTimeIsValid = true
     private let isEditing: Bool
     private let onSave: (TaskDraft) throws -> Void
     private let ownsTitle: Bool
@@ -34,12 +35,7 @@ struct TaskEditorView: View {
                     Picker("優先度", selection: $draft.priority) {
                         ForEach(TaskPriority.allCases, id: \.self) { Text($0.displayName).tag($0) }
                     }
-                    DatePicker(
-                        "締切", selection: $draft.deadline,
-                        in: Date.distantPast...Date.distantFuture,
-                        displayedComponents: [.date, .hourAndMinute]
-                    )
-                    .accessibilityIdentifier("task-deadline")
+                    DeadlineFields(selection: $draft.deadline, isTimeValid: $deadlineTimeIsValid, identifier: "task-deadline")
                     .disabled(!ownsDeadline)
                     if !ownsTitle {
                         Text("タイトルとReminders側で設定した締切は、Apple Remindersで変更してください。")
@@ -83,7 +79,7 @@ struct TaskEditorView: View {
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("保存", action: save)
-                        .disabled(draft.validationMessage != nil)
+                        .disabled(draft.validationMessage != nil || ownsDeadline && !deadlineTimeIsValid)
                         .accessibilityIdentifier("save-task")
                 }
             }
@@ -94,6 +90,7 @@ struct TaskEditorView: View {
     }
 
     private func save() {
+        guard !ownsDeadline || deadlineTimeIsValid else { return }
         do {
             try onSave(draft)
             dismiss()

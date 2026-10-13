@@ -48,6 +48,7 @@ private struct InputQueueRow: View {
     let isRecoveryRequired: Bool
     @State private var draft: InputQueueDraft
     @State private var errorMessage: String?
+    @State private var deadlineTimeIsValid = true
     init(record: ReminderRecord, reminders: ReminderSyncViewModel, calendar: Calendar, reference: Date, isRecoveryRequired: Bool) {
         self.record = record; self.reminders = reminders; self.calendar = calendar; self.reference = reference
         self.isRecoveryRequired = isRecoveryRequired
@@ -82,10 +83,8 @@ private struct InputQueueRow: View {
                 Text("クイック期限は23:59。今週末は日曜です。日時は変更できます。")
                     .font(.caption).foregroundStyle(.secondary)
                 if draft.setsDeadline {
-                    DatePicker("締切", selection: $draft.deadline, in: Date.distantPast...Date.distantFuture,
-                        displayedComponents: [.date, .hourAndMinute])
+                    DeadlineFields(selection: $draft.deadline, isTimeValid: $deadlineTimeIsValid, identifier: "queue-deadline-" + record.id)
                         .accessibilityLabel(record.displayTitle + "の締切日時")
-                        .accessibilityIdentifier("queue-deadline-" + record.id)
                 }
             }
             if record.title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || record.isRecurring && record.occurrenceKey == nil {
@@ -97,16 +96,18 @@ private struct InputQueueRow: View {
             }
             if let errorMessage { Text(errorMessage).foregroundStyle(.orange) }
             Button("保存して配置", systemImage: "checkmark") {
+                guard !draft.setsDeadline || deadlineTimeIsValid else { return }
                 do { try draft.save(to: reminders); errorMessage = nil }
                 catch { errorMessage = error.localizedDescription }
             }.buttonStyle(.borderedProminent)
-                .disabled(draft.validationMessage != nil)
+                .disabled(draft.validationMessage != nil || draft.setsDeadline && !deadlineTimeIsValid)
                 .accessibilityIdentifier("queue-save-" + record.id)
         }
         .disabled(reminders.isLoading || !reminders.isStorageAvailable || isRecoveryRequired)
         .onChange(of: record) { _, value in
             draft = InputQueueDraft(record: value, metadata: reminders.metadata(for: value.id), reference: reference, calendar: calendar)
             errorMessage = nil
+            deadlineTimeIsValid = true
         }
     }
 }
