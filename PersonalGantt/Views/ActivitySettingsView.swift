@@ -109,10 +109,10 @@ struct DayActivityView: View {
 private struct ActivityTimeFields: View {
     @Binding var draft: ActivityWindowDraft
     var body: some View {
-        TextField("開始（HH:mm）", text: $draft.start).accessibilityIdentifier("activity-start")
-        TextField("終了（HH:mm、24:00まで）", text: $draft.end).accessibilityIdentifier("activity-end")
+        ClockTimeTextField(title: "開始（例: 1000）", text: $draft.start).accessibilityIdentifier("activity-start")
+        ClockTimeTextField(title: "終了（例: 2400、24:00まで）", text: $draft.end, allowsEndOfDay: true).accessibilityIdentifier("activity-end")
         if draft.window == nil {
-            Text("10:00、24:00のように入力し、開始より後の終了時刻を指定してください。")
+            Text("1000→10:00、2400→24:00のように4桁でも入力できます。開始より後の終了時刻を指定してください。")
                 .font(.caption).foregroundStyle(.orange)
         }
     }

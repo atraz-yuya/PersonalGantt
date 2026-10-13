@@ -53,9 +53,12 @@ struct ReminderScheduleIntegrationTests {
         provider.records = [ReminderFixtures.record(completed: true)]
         await reminders.refresh()
         #expect(model.result.blocks == [first])
+        let completedToday = TodaySummary.make(now: clock.date, tasks: model.tasks, blocks: model.result.blocks, sessions: model.workSessions, calendar: ReminderFixtures.calendar)
+        #expect(completedToday.blocks.isEmpty && completedToday.nextWork == nil)
         provider.records = []
         await reminders.refresh()
         #expect(model.tasks.isEmpty && model.result.blocks == [first])
+        #expect(TodaySummary.make(now: clock.date, tasks: model.tasks, blocks: model.result.blocks, sessions: model.workSessions, calendar: ReminderFixtures.calendar).blocks.isEmpty)
         #expect(model.title(for: first.taskID) == "合成Task")
         #expect(http.requests.count == 2)
     }

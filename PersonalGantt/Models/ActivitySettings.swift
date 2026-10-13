@@ -50,7 +50,7 @@ nonisolated struct ActivitySettings: Codable, Equatable, Sendable {
     }
 }
 
-/// Time text accepts HH:mm, with 24:00 allowed only for the end of a day.
+/// Time text accepts HHmm or HH:mm, with 24:00 allowed only for the end of a day.
 nonisolated struct ActivityWindowDraft {
     var start: String
     var end: String
@@ -58,15 +58,9 @@ nonisolated struct ActivityWindowDraft {
         start = ActivityWindow.time(window.startMinute); end = ActivityWindow.time(window.endMinute)
     }
     var window: ActivityWindow? {
-        guard let start = Self.minute(start), let end = Self.minute(end) else { return nil }
+        guard let start = ClockTime.minute(start), let end = ClockTime.minute(end, allowsEndOfDay: true) else { return nil }
         let value = ActivityWindow(startMinute: start, endMinute: end)
         return value.isValid ? value : nil
-    }
-    private static func minute(_ text: String) -> Int? {
-        let parts = text.trimmingCharacters(in: .whitespacesAndNewlines).split(separator: ":", omittingEmptySubsequences: false)
-        guard parts.count == 2, parts.allSatisfy({ !$0.isEmpty && $0.allSatisfy({ $0.isASCII && $0.isNumber }) }),
-              let hour = Int(parts[0]), let minute = Int(parts[1]), (0...24).contains(hour), (0..<60).contains(minute), hour < 24 || minute == 0 else { return nil }
-        return hour * 60 + minute
     }
 }
 

@@ -122,6 +122,7 @@ private struct ReminderRequirementsView: View {
     @State private var minutes: String
     @State private var setsDeadline: Bool
     @State private var deadline: Date
+    @State private var deadlineTimeIsValid = true
     @State private var errorMessage: String?
 
     init(record: ReminderRecord, model: ReminderSyncViewModel) {
@@ -134,7 +135,7 @@ private struct ReminderRequirementsView: View {
     }
 
     private var validatedDraft: TaskDraft? {
-        guard record.deadline != nil || setsDeadline,
+        guard record.deadline != nil || setsDeadline && deadlineTimeIsValid,
               !record.isRecurring || record.occurrenceKey != nil else { return nil }
         return TaskDraft(title: record.title, estimatedMinutesText: minutes, deadline: record.deadline ?? deadline)
     }
@@ -151,8 +152,7 @@ private struct ReminderRequirementsView: View {
                     } else if !record.isRecurring {
                         Toggle("締切をPersonalGanttで設定", isOn: $setsDeadline)
                         if setsDeadline {
-                            DatePicker("締切", selection: $deadline, in: Date.distantPast...Date.distantFuture,
-                                       displayedComponents: [.date, .hourAndMinute])
+                            DeadlineFields(selection: $deadline, isTimeValid: $deadlineTimeIsValid, identifier: "reminder-deadline")
                         }
                     }
                     if record.isRecurring && record.occurrenceKey == nil {
@@ -178,6 +178,7 @@ private struct ReminderRequirementsView: View {
                 ToolbarItem(placement: .cancellationAction) { Button("キャンセル") { dismiss() } }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("保存") {
+                        guard record.deadline != nil || deadlineTimeIsValid else { return }
                         do {
                             try model.configure(identifier: record.id, estimatedMinutesText: minutes,
                                                 deadlineOverride: record.deadline == nil && setsDeadline ? deadline : nil)

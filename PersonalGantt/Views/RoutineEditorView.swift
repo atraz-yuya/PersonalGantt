@@ -7,7 +7,7 @@ struct RoutineEditorView: View {
     @State private var frequency: RoutineFrequency
     @State private var weekdays: Set<Int>
     @State private var weeklyDay: Int
-    @State private var fixedTime: Date
+    @State private var fixedTime: String
     @State private var fixedEnabled: Bool
     @State private var error: String?
     let calendar: Calendar
@@ -16,7 +16,7 @@ struct RoutineEditorView: View {
     init(routine: Routine, calendar: Calendar, onSave: @escaping (Routine) throws -> Routine) {
         _routine = State(initialValue: routine)
         _fixedEnabled = State(initialValue: routine.fixedStartMinuteOfDay != nil)
-        _fixedTime = State(initialValue: LocalSchedulingTime.date(routine.fixedStartMinuteOfDay ?? 1140, on: calendar.date(from: DateComponents(year: 2000, month: 1, day: 15)) ?? calendar.startOfDay(for: routine.startDate), calendar: calendar) ?? routine.startDate)
+        _fixedTime = State(initialValue: ActivityWindow.time(routine.fixedStartMinuteOfDay ?? 1140))
         _minutesText = State(initialValue: String(routine.estimatedMinutesPerDay))
         switch routine.recurrence {
         case .daily:
@@ -63,10 +63,12 @@ struct RoutineEditorView: View {
                 Section("実行する時間") {
                     Toggle("固定時間で実行", isOn: $fixedEnabled).accessibilityIdentifier("routine-fixed-enabled")
                     if fixedEnabled {
-                        DatePicker("開始時刻", selection: $fixedTime, displayedComponents: .hourAndMinute).accessibilityIdentifier("routine-fixed-start")
-                        if let minutes = Int(minutesText), (1...1440).contains(minutes) {
-                            Text("予定: \(fixedTime.formatted(date: .omitted, time: .shortened))〜\(fixedTime.addingTimeInterval(Double(minutes) * 60).formatted(date: .omitted, time: .shortened))" +
-                                (calendar.isDate(fixedTime, inSameDayAs: fixedTime.addingTimeInterval(Double(minutes) * 60)) ? "" : "（翌日）"))
+                        ClockTimeTextField(title: "開始時刻（例: 1900）", text: $fixedTime).accessibilityIdentifier("routine-fixed-start")
+                        if let start = ClockTime.minute(fixedTime), let minutes = Int(minutesText), (1...1440).contains(minutes) {
+                            Text("予定: \(ActivityWindow.time(start))〜\(ActivityWindow.time((start + minutes) % 1440))" +
+                                (start + minutes >= 1440 ? "（翌日）" : ""))
+                        } else if ClockTime.minute(fixedTime) == nil {
+                            Text("開始時刻を4桁（例: 1900）または19:00で入力してください。").foregroundStyle(.orange)
                         }
                         Text("予定・共通禁止時間・別の固定Routineと重なっても移動せず、競合を表示します。固定枠も日次上限に算入します。")
                             .font(.caption).foregroundStyle(.secondary)
@@ -91,11 +93,13 @@ struct RoutineEditorView: View {
                             value.startDate = calendar.startOfDay(for: value.startDate)
                             value.endDate = calendar.startOfDay(for: value.endDate)
                             value.recurrence = recurrence
-                            value.fixedStartMinuteOfDay = fixedEnabled ? calendar.component(.hour, from: fixedTime) * 60 + calendar.component(.minute, from: fixedTime) : nil
+                            guard !fixedEnabled || ClockTime.minute(fixedTime) != nil else { throw RoutineInputError.invalidFixedTime }
+                            value.fixedStartMinuteOfDay = fixedEnabled ? ClockTime.minute(fixedTime) : nil
                             _ = try onSave(value)
                             dismiss()
                         } catch { self.error = error.localizedDescription }
-                    }.accessibilityIdentifier("save-routine")
+                    }.disabled(fixedEnabled && ClockTime.minute(fixedTime) == nil)
+                        .accessibilityIdentifier("save-routine")
                 }
             }
         }
