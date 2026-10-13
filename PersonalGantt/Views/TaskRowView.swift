@@ -51,6 +51,10 @@ struct TaskRowView: View {
                 Label("Apple Reminders連携", systemImage: "checklist")
                     .font(.caption).foregroundStyle(.secondary)
             }
+            if let block = task.fixedRoutineBlock {
+                Label("固定 \(block.start.formatted(date: .omitted, time: .shortened))〜\(block.end.formatted(date: .omitted, time: .shortened))", systemImage: "lock")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
             if let occurrence = task.routineOccurrence {
                 Label("ルーティン・\(occurrence.dayStart.formatted(date: .abbreviated, time: .omitted))", systemImage: "repeat")
                     .font(.caption).foregroundStyle(.secondary)

@@ -18,6 +18,13 @@ nonisolated struct PlanningHorizonResolver: Sendable {
             // Routine's end date is inclusive; a normal Task's deadline is exact.
             guard let end = calendar.date(byAdding: .day, value: 1, to: calendar.startOfDay(for: routine.endDate)), end > now else { continue }
             needed = max(needed, end)
+            // A final fixed occurrence may finish after its inclusive end date.
+            // Use elapsed duration from the actual civil start, including DST days.
+            if routine.recurrence.includes(routine.endDate, calendar: calendar),
+               let minute = routine.fixedStartMinuteOfDay,
+               let fixedStart = LocalSchedulingTime.date(minute, on: calendar.startOfDay(for: routine.endDate), calendar: calendar, strict: true) {
+                needed = max(needed, fixedStart.addingTimeInterval(Double(routine.estimatedMinutesPerDay) * 60))
+            }
         }
         return PlanningHorizon(start: start, end: min(needed, maximum), wasCapped: needed > maximum)
     }

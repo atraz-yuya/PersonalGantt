@@ -57,7 +57,7 @@ final class ReminderSyncViewModel {
             return value.applying(to: local)
         }
         if synced.payload == nil {
-            var reset = local; reset.estimatedMinutes = nil; reset.deadlineOverride = nil; reset.isExcluded = false
+            var reset = local; reset.estimatedMinutes = nil; reset.deadlineOverride = nil; reset.isExcluded = false; reset.availabilityExclusions = []
             return reset
         }
         return local
@@ -184,7 +184,7 @@ final class ReminderSyncViewModel {
         publishTasks()
     }
 
-    func configure(identifier: String, estimatedMinutesText: String, deadlineOverride: Date?) throws {
+    func configure(identifier: String, estimatedMinutesText: String, deadlineOverride: Date?, availabilityExclusions: [TaskAvailabilityExclusion]? = nil) throws {
         guard !isLoading, isStorageAvailable, let record = record(for: identifier), var value = metadata(for: identifier)
         else { throw ReminderServiceError.reminderUnavailable }
         guard !record.isRecurring || record.occurrenceKey != nil else { throw TaskInputError.invalidDeadline }
@@ -196,6 +196,10 @@ final class ReminderSyncViewModel {
         value.estimatedMinutes = input.estimatedMinutes
         value.deadlineOverride = record.deadline == nil ? deadlineOverride : nil
         value.isExcluded = false
+        if let availabilityExclusions {
+            guard AvailabilityExclusion.valid(availabilityExclusions) else { throw TaskInputError.invalidAvailabilityExclusions }
+            value.availabilityExclusions = availabilityExclusions
+        }
         if try commitPortableMetadata(identifier: identifier, metadata: value) {
             message = nil; lastOperationFailed = false; return
         }

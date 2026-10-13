@@ -8,6 +8,7 @@ nonisolated struct ReminderTaskMetadata: Codable, Equatable, Sendable {
     var deadlineOverride: Date?
     var isExcluded = false
     var occurrenceKey: String?
+    var availabilityExclusions: [TaskAvailabilityExclusion] = []
 }
 
 nonisolated struct ReminderLocalState: Codable, Equatable, Sendable {
@@ -22,13 +23,13 @@ nonisolated struct ReminderLocalState: Codable, Equatable, Sendable {
         guard selectedListIDs.allSatisfy({ !$0.isEmpty }),
               Set(metadata.values.map(\.taskID)).count == metadata.count,
               metadata.allSatisfy({ id, value in
-                  !id.isEmpty && !value.listID.isEmpty &&
+                  !id.isEmpty && !value.listID.isEmpty && AvailabilityExclusion.valid(value.availabilityExclusions) &&
                   (value.estimatedMinutes.map { $0 > 0 } ?? true) &&
                   (value.deadlineOverride.map { $0.timeIntervalSinceReferenceDate.isFinite && $0 >= .distantPast && $0 <= .distantFuture } ?? true)
               }),
               (pendingTransfer.map { values in
                   Set(values.values.map(\.taskID)).count == values.count && values.allSatisfy { id, value in
-                      !id.isEmpty && !value.listID.isEmpty &&
+                      !id.isEmpty && !value.listID.isEmpty && AvailabilityExclusion.valid(value.availabilityExclusions) &&
                       (value.estimatedMinutes.map { $0 > 0 } ?? true) &&
                       (value.deadlineOverride.map { $0.timeIntervalSinceReferenceDate.isFinite && $0 >= .distantPast && $0 <= .distantFuture } ?? true)
                   }
@@ -76,5 +77,20 @@ final class FileReminderMetadataStore: ReminderMetadataStoring {
             try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
             try data.write(to: url, options: .atomic)
         } catch { throw ReminderServiceError.localStorage }
+    }
+}
+
+nonisolated extension ReminderTaskMetadata {
+    enum CodingKeys: String, CodingKey { case taskID, externalIdentifier, listID, estimatedMinutes, deadlineOverride, isExcluded, occurrenceKey, availabilityExclusions }
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        taskID = try c.decode(UUID.self, forKey: .taskID)
+        externalIdentifier = try c.decodeIfPresent(String.self, forKey: .externalIdentifier)
+        listID = try c.decode(String.self, forKey: .listID)
+        estimatedMinutes = try c.decodeIfPresent(Int.self, forKey: .estimatedMinutes)
+        deadlineOverride = try c.decodeIfPresent(Date.self, forKey: .deadlineOverride)
+        isExcluded = try c.decodeIfPresent(Bool.self, forKey: .isExcluded) ?? false
+        occurrenceKey = try c.decodeIfPresent(String.self, forKey: .occurrenceKey)
+        availabilityExclusions = try c.decodeIfPresent([TaskAvailabilityExclusion].self, forKey: .availabilityExclusions) ?? []
     }
 }

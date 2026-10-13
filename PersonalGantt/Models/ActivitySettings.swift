@@ -22,9 +22,10 @@ nonisolated struct ActivitySettings: Codable, Equatable, Sendable {
     var planningDayCount = 14
     /// Gregorian local date keys survive time-zone offset changes without shifting the chosen date.
     var dayOverrides: [String: ActivityDayOverride] = [:]
+    var globalAvailabilityExclusions: [GlobalAvailabilityExclusion] = []
     static let `default` = ActivitySettings()
     var isValid: Bool {
-        weekday.isValid && weekend.isValid && planningDayCount > 0 && dayOverrides.allSatisfy {
+        weekday.isValid && weekend.isValid && planningDayCount > 0 && AvailabilityExclusion.valid(globalAvailabilityExclusions) && dayOverrides.allSatisfy {
             Self.date(for: $0.key) != nil && ($0.value.window?.isValid ?? true)
         }
     }
@@ -66,5 +67,17 @@ nonisolated struct ActivityWindowDraft {
         guard parts.count == 2, parts.allSatisfy({ !$0.isEmpty && $0.allSatisfy({ $0.isASCII && $0.isNumber }) }),
               let hour = Int(parts[0]), let minute = Int(parts[1]), (0...24).contains(hour), (0..<60).contains(minute), hour < 24 || minute == 0 else { return nil }
         return hour * 60 + minute
+    }
+}
+
+nonisolated extension ActivitySettings {
+    enum CodingKeys: String, CodingKey { case weekday, weekend, planningDayCount, dayOverrides, globalAvailabilityExclusions }
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        weekday = try c.decode(ActivityWindow.self, forKey: .weekday)
+        weekend = try c.decode(ActivityWindow.self, forKey: .weekend)
+        planningDayCount = try c.decode(Int.self, forKey: .planningDayCount)
+        dayOverrides = try c.decodeIfPresent([String: ActivityDayOverride].self, forKey: .dayOverrides) ?? [:]
+        globalAvailabilityExclusions = try c.decodeIfPresent([GlobalAvailabilityExclusion].self, forKey: .globalAvailabilityExclusions) ?? []
     }
 }

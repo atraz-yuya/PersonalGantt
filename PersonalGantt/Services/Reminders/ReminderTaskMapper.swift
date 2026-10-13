@@ -53,7 +53,7 @@ nonisolated enum ReminderTaskMapper {
               let deadline = record.deadline ?? metadata.deadlineOverride,
               deadline.timeIntervalSinceReferenceDate.isFinite, deadline >= .distantPast, deadline <= .distantFuture else { return nil }
         return Task(id: metadata.taskID, title: title, isCompleted: record.isCompleted,
-                    estimatedMinutes: minutes, deadline: deadline, reminderIdentifier: record.id)
+                    estimatedMinutes: minutes, deadline: deadline, reminderIdentifier: record.id, availabilityExclusions: metadata.availabilityExclusions)
     }
 
     static func tasks(records: [ReminderRecord], state: ReminderLocalState) -> [Task] {

@@ -38,12 +38,16 @@ nonisolated struct Routine: Identifiable, Codable, Equatable, Sendable {
     var recurrence: RecurrenceRule
     var completedOccurrenceIDs: Set<UUID> = []
     var skippedOccurrenceIDs: Set<UUID> = []
+    var fixedStartMinuteOfDay: Int? = nil
 
     func validate() throws {
         _ = try TaskDraft(title: title, estimatedMinutesText: String(estimatedMinutesPerDay), deadline: endDate).validated()
         guard startDate.timeIntervalSinceReferenceDate.isFinite,
               startDate >= .distantPast, startDate <= .distantFuture,
               startDate <= endDate else { throw RoutineInputError.invalidDates }
+        if let minute = fixedStartMinuteOfDay {
+            guard (0..<1440).contains(minute), (1...1440).contains(estimatedMinutesPerDay) else { throw RoutineInputError.invalidFixedTime }
+        }
         guard recurrence.isValid else { throw RoutineInputError.invalidWeekdays }
         guard completedOccurrenceIDs.isDisjoint(with: skippedOccurrenceIDs) else { throw RoutineInputError.invalidState }
     }
@@ -54,6 +58,8 @@ nonisolated struct RoutineOccurrence: Codable, Equatable, Sendable {
     let dayKey: String
     let dayStart: Date
     let dayEnd: Date
+    var fixedStartMinuteOfDay: Int? = nil
+    var fixedStart: Date? = nil
 
     /// Independent of launch, input ordering and time-zone offset for the same local date.
     var taskID: UUID {
@@ -66,12 +72,13 @@ nonisolated struct RoutineOccurrence: Codable, Equatable, Sendable {
 }
 
 nonisolated enum RoutineInputError: LocalizedError, Equatable {
-    case invalidDates, invalidWeekdays, invalidState, editOccurrence
+    case invalidDates, invalidWeekdays, invalidState, editOccurrence, invalidFixedTime
     var errorDescription: String? {
         switch self {
         case .invalidDates: "開始日は終了日以前の有効な日付を選択してください。"
         case .invalidWeekdays: "繰り返す曜日を選択してください。"
         case .invalidState: "ルーティンの完了・スキップ状態を確認できません。"
+        case .invalidFixedTime: "固定開始は0:00〜23:59、固定Routineの所要時間は1〜1440分で設定してください。"
         case .editOccurrence: "日ごとの作業要件は「作業量・ルーティン」で変更してください。"
         }
     }

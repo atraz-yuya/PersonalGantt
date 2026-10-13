@@ -29,6 +29,9 @@ struct TaskDetailView: View {
                         if let message = model.feasibilityMessage(for: task) {
                             Label(message, systemImage: "exclamationmark.circle").foregroundStyle(.orange)
                         }
+                        if let block = task.fixedRoutineBlock {
+                            Label("固定 \(block.start.formatted(date: .omitted, time: .shortened))〜\(block.end.formatted(date: .omitted, time: .shortened))", systemImage: "lock")
+                        }
                         if let occurrence = task.routineOccurrence {
                             Label("ルーティン・\(occurrence.dayStart.formatted(date: .abbreviated, time: .omitted))", systemImage: "repeat")
                             Text("完了はこの日の作業だけに適用します。編集ではルーティン全体の設定を変更します。")
@@ -39,7 +42,7 @@ struct TaskDetailView: View {
                         }
                         if model.isReminderTask(taskID) {
                             Label("Apple Reminders連携", systemImage: "checklist")
-                            Text("タイトルとReminders側の締切は、Apple Remindersで変更してください。所要時間はこの端末で設定します。")
+                            Text("タイトルとReminders側の締切は、Apple Remindersで変更してください。所要時間と時間制約はPersonalGanttで設定し、端末間同期が有効なら共有します。")
                                 .font(.caption).foregroundStyle(.secondary)
                         }
                         Button(task.isCompleted ? "未完了に戻す" : "Taskを完了にする") {
@@ -71,7 +74,7 @@ struct TaskDetailView: View {
                             Text("\(block.durationMinutes.formatted())分").font(.caption).foregroundStyle(.secondary)
                         }
                     }
-                    Text("配置時間は作業実績ではありません。開始・終了時刻はSchedulerが決定します。")
+                    Text("配置時間は作業実績ではありません。固定Routine以外の開始・終了時刻はSchedulerが決定します。")
                         .font(.caption).foregroundStyle(.secondary)
                 }
                 if let message = model.reminders?.message, model.isReminderTask(taskID) {

@@ -1,0 +1,35 @@
+Scheduling time constraints verification — 2026-10-13–14
+MacBook Neo / iPhone 15, OS 27.0.1; Xcode 27
+Final macOS unit suite: 499 functions / 657 expanded cases passed; 0 failed; 0 skipped.
+Final signed macOS build: succeeded; final source launched with existing saved data.
+Final signed physical iOS build: succeeded; final source installed and launched without changing bundle ID, icons, entitlements or project signing settings.
+After final update, Mac sync settings showed synced with the existing trusted iPhone; no re-pairing.
+
+Physical observations:
+- iPhone weekly Tuesday 19:00 routine, 60 minutes -> Mac 2026-10-20 19:00–20:00.
+- iPhone synthetic 90-minute Task, deadline 2026-10-14 20:00, daily exclusions 00:00–17:30 and 18:00–19:00 -> 17:30–18:00 + 19:00–20:00 on both devices.
+- iPhone constraint editor initially dismissed immediately; replaced section-owned child sheet with parent-owned navigation destination. User confirmed editor remains usable and exact two-block schedule after installing fix.
+- Mac restart preserved routine, Task constraints and exact two-block schedule.
+- Common 19:00–20:00 exclusion: fixed Tuesday routine remained 19:00–20:00 with global-conflict warning.
+- Normal Wi-Fi, one Sync Now: user confirmed common 19:00–20:00 and one native-derived TimeRules-Reminder, 30 minutes, supplement 2026-10-15 23:59, individual exclusion 18:00–19:00 on iPhone.
+- Unplugged USB, Mac on iPhone tethering, one iPhone Sync Now: common returned to 12:00–13:00; fixed-routine conflict cleared; Mac editor showed native-derived reminder exclusion 18:00–18:45 with 30 minutes and same supplemental deadline.
+
+- Cleanup sync: synthetic routine, 90-minute Task and native TimeRules-Reminder absent from Mac task list; common exclusions read as unset. Existing user data and activity overrides preserved.
+- Final boundary tests: last overnight occurrence extends target horizon; nonrecurring end date does not extend it; 14/90-day caps prevent new fixed blocks beyond range independently of Calendar selection; full fetched coverage required; begun fixed work preserved.
+
+Privacy-filtered selected transport events (public identity material, peer names/IDs anonymized; no payloads):
+[LocalSync] identity.validated peer=trusted-device fingerprint=<pinned-public-hash> algorithm=RSA2048 firstType=SecIdentity publicKeysMatch=true signatureVerified=true
+[LocalSync] network.certificate.callback peer=trusted-device fingerprint=<pinned-public-hash> accept=true reason=trustedFingerprint outgoing=false
+[LocalSync] transport.winner peer=trusted-device fingerprint=<pinned-public-hash> id=<device-id> route=network
+[LocalSync] protocol.sent peer=trusted-device fingerprint=- kind=hello
+[LocalSync] protocol.received peer=trusted-device fingerprint=- kind=hello
+[LocalSync] protocol.sent peer=trusted-device fingerprint=- kind=ready
+[LocalSync] protocol.received peer=trusted-device fingerprint=- kind=ready
+[LocalSync] protocol.received peer=trusted-device fingerprint=- kind=ack
+[LocalSync] sync.success peer=trusted-device fingerprint=-
+[LocalSync] protocol.received peer=trusted-device fingerprint=- kind=records
+[LocalSync] protocol.sent peer=trusted-device fingerprint=- kind=ack
+[LocalSync] certificate.accepted peer=trusted-device fingerprint=<pinned-public-hash> reason=trustedFingerprint
+[LocalSync] transport.winner peer=trusted-device fingerprint=<pinned-public-hash> id=<device-id> route=multipeer
+[LocalSync] network.certificate.callback peer=trusted-device fingerprint=<pinned-public-hash> accept=true reason=trustedFingerprint outgoing=true
+[LocalSync] sync.success peer=trusted-device fingerprint=-

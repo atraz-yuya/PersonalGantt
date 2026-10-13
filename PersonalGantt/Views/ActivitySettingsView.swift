@@ -2,6 +2,7 @@ import SwiftUI
 
 struct ActivitySettingsView: View {
     @Bindable var model: ScheduleViewModel
+    @State private var editingExclusion: AvailabilityExclusion?
     @State private var normal: ActivityWindowDraft
     @State private var weekend: ActivityWindowDraft
     @State private var selectedDay: Date
@@ -29,6 +30,10 @@ struct ActivitySettingsView: View {
                     .font(.caption).foregroundStyle(.secondary)
                 if let message { Text(message).font(.caption) }
             }
+            AvailabilityExclusionList(title: "共通の配置禁止時間", values: model.activitySettings.globalAvailabilityExclusions, onEdit: { editingExclusion = $0 }) { values in
+                var settings = model.activitySettings; settings.globalAvailabilityExclusions = values
+                try model.setActivitySettings(settings)
+            }.disabled(model.isBackupRecoveryRequired)
             Section("日付ごとの稼働時間") {
                 DatePicker("日付", selection: $selectedDay, in: Date.distantPast...Date.distantFuture, displayedComponents: .date)
                 NavigationLink("この日の稼働時間を変更") {
@@ -45,6 +50,14 @@ struct ActivitySettingsView: View {
                 }
             }
         }.formStyle(.grouped).navigationTitle("稼働時間")
+            .navigationDestination(item: $editingExclusion) { value in
+                AvailabilityExclusionEditor(value: value) { updated in
+                    var settings = model.activitySettings
+                    if let index = settings.globalAvailabilityExclusions.firstIndex(where: { $0.id == updated.id }) { settings.globalAvailabilityExclusions[index] = updated }
+                    else { settings.globalAvailabilityExclusions.append(updated) }
+                    try model.setActivitySettings(settings)
+                }
+            }
             .environment(\.calendar, model.presentationCalendar).environment(\.timeZone, model.presentationCalendar.timeZone)
     }
 }

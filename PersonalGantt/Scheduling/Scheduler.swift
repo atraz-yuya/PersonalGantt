@@ -9,9 +9,14 @@ nonisolated struct Scheduler: Sendable {
         calendar: Calendar = .current,
         alreadyScheduledSecondsByDay: [Date: TimeInterval] = [:],
         completedMinutesByTask: [UUID: Double] = [:],
-        distributionMode: DistributionMode = .earliestFirst
+        distributionMode: DistributionMode = .earliestFirst,
+        activitySettings: ActivitySettings? = nil, fixedEvents: [FixedEvent] = [],
+        protectedBlocks: [ScheduledBlock] = [], referenceDate: Date? = nil,
+        globalExclusionsApplied: Bool = false, restSettings: SchedulingSettings? = nil,
+        calendarCoverage: CalendarCoverage? = nil, requiresCalendarCoverage: Bool = false,
+        planningRange: DateInterval? = nil
     ) -> SchedulingResult {
-        let orderedTasks = tasks.filter { !$0.isCompleted }.sorted {
+        let orderedTasks = tasks.filter { !$0.isCompleted && !$0.isFixedRoutine }.sorted {
             if $0.deadline != $1.deadline { return $0.deadline < $1.deadline }
             if $0.priority != $1.priority { return $0.priority.rawValue > $1.priority.rawValue }
             let a = max(0, Double($0.estimatedMinutes) - (completedMinutesByTask[$0.id] ?? 0))
@@ -20,6 +25,21 @@ nonisolated struct Scheduler: Sendable {
             return $0.id.uuidString < $1.id.uuidString
         }
         var slots = normalizedSlots(availableSlots)
+        if !globalExclusionsApplied, let activitySettings {
+            slots = AvailabilityExclusionSlots.subtract(activitySettings.globalAvailabilityExclusions, from: slots, calendar: calendar)
+        }
+        let fixed = FixedRoutinePlacement(tasks: tasks, slots: slots, dailySeconds: alreadyScheduledSecondsByDay,
+            allocated: alreadyAllocatedSeconds, completed: completedMinutesByTask, workload: workloadSettings,
+            calendar: calendar, activity: activitySettings, events: fixedEvents, protectedBlocks: protectedBlocks, now: referenceDate, coverage: calendarCoverage, requiresCoverage: requiresCalendarCoverage, planningRange: planningRange)
+        slots = fixed.remainingSlots
+        if let restSettings {
+            if let maximum = restSettings.maxContinuousMinutes, let rest = restSettings.minimumBreakMinutes, restSettings.isValid {
+                slots = IntervalSubtraction.subtract(fixed.blocks.filter { $0.durationMinutes >= Double(maximum) }.map {
+                    DateInterval(start: $0.end, duration: Double(rest) * 60)
+                }, from: slots)
+            }
+            slots = ScheduleOptimizationEngine().restedSlots(slots, settings: restSettings)
+        }
         let needsDays = distributionMode == .balanced || workloadSettings.maxScheduledMinutesPerDay != nil || tasks.contains { $0.routineOccurrence != nil }
         if needsDays {
             slots = slots.flatMap { slot in
@@ -27,9 +47,9 @@ nonisolated struct Scheduler: Sendable {
                     .map { AvailableSlot(start: $0.start, end: $0.end) }
             }
         }
-        var dailySeconds = alreadyScheduledSecondsByDay
+        var dailySeconds = fixed.dailySeconds
         let dailyLimit = workloadSettings.maxScheduledMinutesPerDay.map { max(0, Double($0) * 60) }
-        var result = SchedulingResult(blocks: [], unscheduledTaskIDs: [])
+        var result = SchedulingResult(blocks: fixed.blocks, unscheduledTaskIDs: fixed.unscheduled, fixedRoutineConflicts: fixed.conflicts)
 
         for task in orderedTasks {
             // Zero duration needs no allocation; negative estimates are invalid.
@@ -41,8 +61,9 @@ nonisolated struct Scheduler: Sendable {
             let allocated = alreadyAllocatedSeconds[task.id] ?? 0
             var remainingSeconds = max(0, max(0, Double(task.estimatedMinutes) - (completedMinutesByTask[task.id] ?? 0)) * 60 - (allocated.isFinite ? max(0, allocated) : 0))
 
+            var taskSlots = AvailabilityExclusionSlots.subtract(task.availabilityExclusions, from: slots, calendar: calendar)
             if let bound = task.notBefore {
-                slots = slots.flatMap { slot -> [AvailableSlot] in
+                taskSlots = taskSlots.flatMap { slot -> [AvailableSlot] in
                     if slot.start < bound && bound < slot.end {
                         return [AvailableSlot(start: slot.start, end: bound), AvailableSlot(start: bound, end: slot.end)]
                     }
@@ -51,16 +72,16 @@ nonisolated struct Scheduler: Sendable {
             }
             var budgets: [Date: Double]? = nil
             if distributionMode == .balanced && task.routineOccurrence == nil && remainingSeconds >= 180 * 60 {
-                budgets = balancedBudgets(task: task, remaining: remainingSeconds, slots: slots,
+                budgets = balancedBudgets(task: task, remaining: remainingSeconds, slots: taskSlots,
                     used: dailySeconds, dailyLimit: dailyLimit, calendar: calendar)
             }
-            for index in slots.indices {
+            for index in taskSlots.indices {
                 guard remainingSeconds > 0 else { break }
-                let start = slots[index].start
+                let start = taskSlots[index].start
                 if let bound = task.notBefore, start < bound { continue }
                 if let occurrence = task.routineOccurrence,
                    (start < occurrence.dayStart || start >= occurrence.dayEnd) { continue }
-                let latestEnd = min(slots[index].end, task.deadline)
+                let latestEnd = min(taskSlots[index].end, task.deadline)
                 guard start < latestEnd else { continue }
 
                 let day = calendar.startOfDay(for: start)
@@ -70,7 +91,8 @@ nonisolated struct Scheduler: Sendable {
                 guard duration > 0 else { continue }
                 let end = start.addingTimeInterval(duration)
                 result.blocks.append(ScheduledBlock(taskID: task.id, start: start, end: end))
-                slots[index].start = end
+                taskSlots[index].start = end
+                slots = IntervalSubtraction.subtract([DateInterval(start: start, end: end)], from: slots)
                 remainingSeconds = max(0, remainingSeconds - duration)
                 if let previousBudget = budgets?[day] { budgets?[day] = max(0, previousBudget - duration) }
                 dailySeconds[day, default: 0] += duration

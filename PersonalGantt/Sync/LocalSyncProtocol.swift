@@ -3,8 +3,8 @@ import CryptoKit
 
 nonisolated enum LocalSyncConstants {
     static let serviceType = "pgantt-sync"
-    static let protocolVersion = 2
-    static let schemaVersion = 2
+    static let protocolVersion = 3
+    static let schemaVersion = 3
     static let maximumBytes = 8 * 1024 * 1024
     static let maximumRecords = 10_000
     static let rememberedMessages = 256

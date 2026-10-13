@@ -29,6 +29,7 @@ nonisolated struct PlanSnapshot: Codable, Equatable, Sendable {
     var workSessions: [WorkSession]? = nil
     var schedulingSettings: SchedulingSettings? = nil
     var activeWorkSession: ActiveWorkSession? = nil
+    var fixedRoutineConflicts: [FixedRoutineConflict]? = nil
 
     var resolvedCalendarCoverage: CalendarCoverage? {
         if version >= 3 { return calendarCoverage }
@@ -68,13 +69,16 @@ nonisolated struct PlanSnapshot: Codable, Equatable, Sendable {
                 guard let routine = routines.first(where: { $0.id == occurrence.routineID }),
                       !occurrence.dayKey.isEmpty, occurrence.taskID == task.id,
                       validDate(occurrence.dayStart), validDate(occurrence.dayEnd), occurrence.dayStart < occurrence.dayEnd,
-                      task.deadline == occurrence.dayEnd, task.reminderIdentifier == nil,
+                      occurrence.fixedStartMinuteOfDay == routine.fixedStartMinuteOfDay,
+                      occurrence.fixedStart.map({ validDate($0) && $0 >= occurrence.dayStart && $0 < occurrence.dayEnd }) ?? true,
+                      task.deadline == max(occurrence.dayEnd, task.fixedRoutineBlock?.end ?? occurrence.dayEnd), task.reminderIdentifier == nil,
                       !reminderTaskIDs.contains(task.id),
                       task.isCompleted == routine.completedOccurrenceIDs.contains(task.id),
                       !routine.skippedOccurrenceIDs.contains(task.id)
                 else { throw PlanStorageError.invalidSnapshot }
             }
         }
+        if let fixedRoutineConflicts, !fixedRoutineConflicts.allSatisfy({ taskIDs.contains($0.taskID) }) { throw PlanStorageError.invalidSnapshot }
         if let writebackState { guard version >= 4, (try? writebackState.validate()) != nil else { throw PlanStorageError.invalidSnapshot } }
         if let schedulingSettings, !schedulingSettings.isValid { throw PlanStorageError.invalidSnapshot }
         if schedulingSettings != nil && version < 4 { throw PlanStorageError.invalidSnapshot }

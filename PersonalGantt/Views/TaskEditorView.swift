@@ -2,6 +2,7 @@ import SwiftUI
 
 struct TaskEditorView: View {
     @Environment(\.dismiss) private var dismiss
+    @State private var editingExclusion: AvailabilityExclusion?
     @State private var draft: TaskDraft
     @State private var saveError: String?
     private let isEditing: Bool
@@ -46,6 +47,9 @@ struct TaskEditorView: View {
                     }
                 }
 
+                AvailabilityExclusionList(title: "時間制約・配置しない時間", values: draft.availabilityExclusions, onEdit: { editingExclusion = $0 }) { values in
+                    draft.availabilityExclusions = values
+                }
                 Section {
                     Text("作業時間は空き時間と締切をもとに自動で決まります。")
                         .foregroundStyle(.secondary)
@@ -65,6 +69,14 @@ struct TaskEditorView: View {
             }
             .formStyle(.grouped)
             .navigationTitle(isEditing ? "タスクを編集" : "タスクを追加")
+            // Keep navigation ownership outside Form sections so scrolling/focus
+            // cannot tear down a second modal presentation on iPhone.
+            .navigationDestination(item: $editingExclusion) { value in
+                AvailabilityExclusionEditor(value: value) { updated in
+                    if let index = draft.availabilityExclusions.firstIndex(where: { $0.id == updated.id }) { draft.availabilityExclusions[index] = updated }
+                    else { draft.availabilityExclusions.append(updated) }
+                }
+            }
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("キャンセル") { dismiss() }
