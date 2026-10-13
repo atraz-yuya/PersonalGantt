@@ -12,6 +12,7 @@ nonisolated struct Task: Identifiable, Codable, Equatable, Sendable {
     var notBefore: Date?
     var priority: TaskPriority
     var routineOccurrence: RoutineOccurrence?
+    var availabilityExclusions: [TaskAvailabilityExclusion]
 
     init(
         id: UUID = UUID(),
@@ -22,7 +23,8 @@ nonisolated struct Task: Identifiable, Codable, Equatable, Sendable {
         reminderIdentifier: String? = nil,
         routineOccurrence: RoutineOccurrence? = nil,
         priority: TaskPriority = .normal,
-        notBefore: Date? = nil
+        notBefore: Date? = nil,
+        availabilityExclusions: [TaskAvailabilityExclusion] = []
     ) {
         self.id = id
         self.title = title
@@ -33,8 +35,9 @@ nonisolated struct Task: Identifiable, Codable, Equatable, Sendable {
         self.routineOccurrence = routineOccurrence
         self.priority = priority
         self.notBefore = notBefore
+        self.availabilityExclusions = availabilityExclusions
     }
-    enum CodingKeys: String, CodingKey { case id, title, isCompleted, estimatedMinutes, deadline, reminderIdentifier, routineOccurrence, priority, notBefore }
+    enum CodingKeys: String, CodingKey { case id, title, isCompleted, estimatedMinutes, deadline, reminderIdentifier, routineOccurrence, priority, notBefore, availabilityExclusions }
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         id = try c.decode(UUID.self, forKey: .id)
@@ -45,6 +48,17 @@ nonisolated struct Task: Identifiable, Codable, Equatable, Sendable {
         reminderIdentifier = try c.decodeIfPresent(String.self, forKey: .reminderIdentifier)
         routineOccurrence = try c.decodeIfPresent(RoutineOccurrence.self, forKey: .routineOccurrence)
         notBefore = try c.decodeIfPresent(Date.self, forKey: .notBefore)
+        availabilityExclusions = try c.decodeIfPresent([TaskAvailabilityExclusion].self, forKey: .availabilityExclusions) ?? []
         priority = try c.decodeIfPresent(TaskPriority.self, forKey: .priority) ?? .normal
+    }
+}
+
+nonisolated extension Task {
+    var isFixedRoutine: Bool { routineOccurrence?.fixedStartMinuteOfDay != nil }
+    var fixedRoutineBlock: ScheduledBlock? {
+        guard isFixedRoutine, let start = routineOccurrence?.fixedStart, estimatedMinutes > 0 else { return nil }
+        let end = start.addingTimeInterval(Double(estimatedMinutes) * 60)
+        guard end.timeIntervalSinceReferenceDate.isFinite, end > start, end <= .distantFuture else { return nil }
+        return ScheduledBlock(taskID: id, start: start, end: end)
     }
 }

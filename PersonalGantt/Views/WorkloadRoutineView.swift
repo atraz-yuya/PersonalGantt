@@ -171,7 +171,7 @@ struct WorkloadRoutineView: View {
               message = model.persistenceMessage ?? "日次上限を反映しました。"
             } catch { message = error.localizedDescription }
           }.disabled(model.isBackupRecoveryRequired).accessibilityIdentifier("save-workload-limit")
-          Text("通常タスクとルーティンの合計が対象です。Googleの固定予定は含めません。上限を超えて締切を優先する配置は行いません。開始済みの時間枠は保持します。")
+          Text("通常タスクとルーティンの合計が対象です。Googleの固定予定は含めません。固定Routineは指定時刻に確保し、上限超過を警告します。その他の自動配置は上限を守ります。開始済みの時間枠は保持します。")
             .font(.caption).foregroundStyle(.secondary)
           if let message { Text(message).font(.caption).foregroundStyle(.secondary) }
           if model.workloadLimitExceededDays > 0 {
@@ -186,6 +186,10 @@ struct WorkloadRoutineView: View {
             VStack(alignment: .leading, spacing: 6) {
               Text(routine.title).font(.headline)
               Text("\(routine.recurrence.displayName)・各日\(routine.estimatedMinutesPerDay)分")
+              if let minute = routine.fixedStartMinuteOfDay {
+                Label("固定 \(ActivityWindow.time(minute))〜\(ActivityWindow.time((minute + routine.estimatedMinutesPerDay) % 1440))" +
+                    (minute + routine.estimatedMinutesPerDay >= 1440 ? "（翌日）" : ""), systemImage: "lock").font(.caption)
+              }
               Text(
                 "\(routine.startDate.formatted(date: .abbreviated, time: .omitted)) 〜 \(routine.endDate.formatted(date: .abbreviated, time: .omitted))"
               )

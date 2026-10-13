@@ -17,12 +17,13 @@ nonisolated struct RoutinePlanner: Sendable {
                 civil.timeZone = calendar.timeZone
                 let parts = civil.dateComponents([.era, .year, .month, .day], from: interval.start)
                 let key = "\(parts.era ?? 1)-\(parts.year ?? 0)-\(parts.month ?? 0)-\(parts.day ?? 0)"
+                let fixedStart = routine.fixedStartMinuteOfDay.flatMap { LocalSchedulingTime.date($0, on: interval.start, calendar: calendar, strict: true) }
                 let occurrence = RoutineOccurrence(routineID: routine.id, dayKey: key,
-                                                   dayStart: interval.start, dayEnd: interval.end)
+                                                   dayStart: interval.start, dayEnd: interval.end, fixedStartMinuteOfDay: routine.fixedStartMinuteOfDay, fixedStart: fixedStart)
                 guard !routine.skippedOccurrenceIDs.contains(occurrence.taskID) else { return nil }
                 return Task(id: occurrence.taskID, title: routine.title,
                             isCompleted: routine.completedOccurrenceIDs.contains(occurrence.taskID),
-                            estimatedMinutes: routine.estimatedMinutesPerDay, deadline: interval.end,
+                            estimatedMinutes: routine.estimatedMinutesPerDay, deadline: fixedStart.map { max(interval.end, $0.addingTimeInterval(Double(routine.estimatedMinutesPerDay) * 60)) } ?? interval.end,
                             routineOccurrence: occurrence)
             }
         }

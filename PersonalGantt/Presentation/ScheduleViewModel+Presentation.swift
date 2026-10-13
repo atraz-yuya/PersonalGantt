@@ -35,7 +35,8 @@ extension ScheduleViewModel {
         if let range = planningInterval, task.deadline > range.end { return .deadlineBeyondPlanningHorizon }
         if coverageMessage != nil, task.deadline > schedulingReferenceDate,
            calendarCoverage.map({ task.deadline > $0.end }) ?? true { return .calendarCoveragePending }
-        let eligible = availableSlots.filter { slot in
+        let taskSlots = AvailabilityExclusionSlots.subtract(task.availabilityExclusions, from: availableSlots, calendar: presentationCalendar)
+        let eligible = taskSlots.filter { slot in
             guard max(slot.start, task.notBefore ?? slot.start) < min(slot.end, task.deadline) else { return false }
             if let occurrence = task.routineOccurrence {
                 return slot.end > occurrence.dayStart && slot.start < occurrence.dayEnd
@@ -54,6 +55,8 @@ extension ScheduleViewModel {
     }
 
     func feasibilityMessage(for task: Task) -> String? {
+        let conflicts = result.fixedRoutineConflicts.filter { $0.taskID == task.id }
+        if !conflicts.isEmpty { return conflicts.map { $0.reason.message }.joined(separator: " ") }
         if !task.isCompleted, let range = planningInterval, task.deadline > range.end {
             return "締切は現在の計画期間より先です。対象期間内の未配置だけでは、締切に間に合うか判断できません。"
         }

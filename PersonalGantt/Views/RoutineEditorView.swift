@@ -7,12 +7,16 @@ struct RoutineEditorView: View {
     @State private var frequency: RoutineFrequency
     @State private var weekdays: Set<Int>
     @State private var weeklyDay: Int
+    @State private var fixedTime: Date
+    @State private var fixedEnabled: Bool
     @State private var error: String?
     let calendar: Calendar
     let onSave: (Routine) throws -> Routine
 
     init(routine: Routine, calendar: Calendar, onSave: @escaping (Routine) throws -> Routine) {
         _routine = State(initialValue: routine)
+        _fixedEnabled = State(initialValue: routine.fixedStartMinuteOfDay != nil)
+        _fixedTime = State(initialValue: LocalSchedulingTime.date(routine.fixedStartMinuteOfDay ?? 1140, on: calendar.date(from: DateComponents(year: 2000, month: 1, day: 15)) ?? calendar.startOfDay(for: routine.startDate), calendar: calendar) ?? routine.startDate)
         _minutesText = State(initialValue: String(routine.estimatedMinutesPerDay))
         switch routine.recurrence {
         case .daily:
@@ -56,8 +60,20 @@ struct RoutineEditorView: View {
                     DatePicker("開始日", selection: $routine.startDate, in: Date.distantPast...Date.distantFuture, displayedComponents: .date)
                     DatePicker("終了日（この日を含む）", selection: $routine.endDate, in: Date.distantPast...Date.distantFuture, displayedComponents: .date)
                 }
+                Section("実行する時間") {
+                    Toggle("固定時間で実行", isOn: $fixedEnabled).accessibilityIdentifier("routine-fixed-enabled")
+                    if fixedEnabled {
+                        DatePicker("開始時刻", selection: $fixedTime, displayedComponents: .hourAndMinute).accessibilityIdentifier("routine-fixed-start")
+                        if let minutes = Int(minutesText), (1...1440).contains(minutes) {
+                            Text("予定: \(fixedTime.formatted(date: .omitted, time: .shortened))〜\(fixedTime.addingTimeInterval(Double(minutes) * 60).formatted(date: .omitted, time: .shortened))" +
+                                (calendar.isDate(fixedTime, inSameDayAs: fixedTime.addingTimeInterval(Double(minutes) * 60)) ? "" : "（翌日）"))
+                        }
+                        Text("予定・共通禁止時間・別の固定Routineと重なっても移動せず、競合を表示します。固定枠も日次上限に算入します。")
+                            .font(.caption).foregroundStyle(.secondary)
+                    }
+                }
                 Section {
-                    Text("選択した日ごとに必要時間を生成し、その日の空き時間へ配置します。配置できない分を翌日に持ち越しません。開始・終了時刻は自動で決まります。")
+                    Text("選択した日ごとに必要時間を生成し、その日の空き時間へ配置します。配置できない分を翌日に持ち越しません。固定時間がOFFの場合は開始・終了時刻が自動で決まります。")
                         .foregroundStyle(.secondary)
                     if let error { Text(error).foregroundStyle(.red) }
                 }.font(.caption)
@@ -75,6 +91,7 @@ struct RoutineEditorView: View {
                             value.startDate = calendar.startOfDay(for: value.startDate)
                             value.endDate = calendar.startOfDay(for: value.endDate)
                             value.recurrence = recurrence
+                            value.fixedStartMinuteOfDay = fixedEnabled ? calendar.component(.hour, from: fixedTime) * 60 + calendar.component(.minute, from: fixedTime) : nil
                             _ = try onSave(value)
                             dismiss()
                         } catch { self.error = error.localizedDescription }
@@ -82,6 +99,7 @@ struct RoutineEditorView: View {
                 }
             }
         }
+        .environment(\.calendar, calendar).environment(\.timeZone, calendar.timeZone)
         #if os(macOS)
         .frame(minWidth: 450, idealWidth: 500, minHeight: 500)
         #endif

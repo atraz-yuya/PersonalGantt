@@ -3,7 +3,7 @@ import Foundation
 /// Preserves begun plans without equating them with completed work.
 nonisolated struct ScheduleReplanner: Sendable {
     func schedule(tasks: [Task], availableSlots: [AvailableSlot], previousBlocks: [ScheduledBlock], now: Date,
-                  workloadSettings: WorkloadSettings = .unlimited, calendar: Calendar = .current, workSessions: [WorkSession] = [], distributionMode: DistributionMode = .earliestFirst, optimizationSettings: SchedulingSettings? = nil) -> SchedulingResult {
+                  workloadSettings: WorkloadSettings = .unlimited, calendar: Calendar = .current, workSessions: [WorkSession] = [], distributionMode: DistributionMode = .earliestFirst, optimizationSettings: SchedulingSettings? = nil, activitySettings: ActivitySettings? = nil, fixedEvents: [FixedEvent] = [], globalExclusionsApplied: Bool = false, calendarCoverage: CalendarCoverage? = nil, requiresCalendarCoverage: Bool = false, planningRange: DateInterval? = nil) -> SchedulingResult {
         let protected = previousBlocks.filter { $0.start <= now }
         var occupied = protected.filter { $0.start < $0.end }.map { DateInterval(start: $0.start, end: $0.end) }
         if let settings = optimizationSettings, settings.isValid,
@@ -31,9 +31,11 @@ nonisolated struct ScheduleReplanner: Sendable {
                 total + WorkSession.unrecordedMinutes(in: block, sessions: workSessions) * 60
             }
         }
+        var settings = optimizationSettings ?? SchedulingSettings(distributionMode: distributionMode)
+        if let activitySettings { settings.activitySettings = activitySettings }
         let request = OptimizationRequest(tasks: tasks, slots: free, allocatedSeconds: allocated,
             dailySeconds: DailyWorkload.secondsByDay(blocks: protected, calendar: calendar), completedMinutes: completed,
-            workload: workloadSettings, settings: optimizationSettings ?? SchedulingSettings(distributionMode: distributionMode), calendar: calendar)
+            workload: workloadSettings, settings: settings, calendar: calendar, fixedEvents: fixedEvents, protectedBlocks: protected, referenceDate: now, globalExclusionsApplied: globalExclusionsApplied, calendarCoverage: calendarCoverage, requiresCalendarCoverage: requiresCalendarCoverage, planningRange: planningRange)
         var result = ScheduleOptimizationEngine().schedule(request)
         result.blocks = (protected + result.blocks).sorted {
             if $0.start != $1.start { return $0.start < $1.start }

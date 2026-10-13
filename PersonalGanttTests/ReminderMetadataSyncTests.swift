@@ -5,6 +5,115 @@ import Testing
 @testable import PersonalGantt
 
 @MainActor struct ReminderMetadataSyncTests {
+    @Test func availabilityRulesSyncBothWaysKeepLocalIdentityAndNativeBody() async throws {
+        let pair = try await MetadataPair()
+        defer { pair.stop() }
+        let first = AvailabilityExclusion(weekdays: Set(1...7), startMinuteOfDay: 1080, endMinuteOfDay: 1140)
+        try pair.iphone.reminders?.configure(identifier: "iphone-native", estimatedMinutesText: "30", deadlineOverride: nil, availabilityExclusions: [first])
+        await pair.iphone.localSync?.syncNow(); await settle()
+        let macTask = try #require(pair.mac.tasks.first), phoneTask = try #require(pair.iphone.tasks.first)
+        #expect(macTask.availabilityExclusions == [first])
+        try pair.mac.logWork(taskID: macTask.id, minutes: 10)
+        pair.macClock.now.addTimeInterval(120)
+        var draft = TaskDraft(task: macTask)
+        draft.availabilityExclusions = [AvailabilityExclusion(weekdays: [2, 4, 6], startMinuteOfDay: 720, endMinuteOfDay: 780)]
+        try pair.mac.updateTask(id: macTask.id, draft: draft)
+        await pair.mac.localSync?.syncNow(); await settle()
+        #expect(pair.iphone.tasks.first?.availabilityExclusions == draft.availabilityExclusions)
+        #expect(pair.iphone.tasks.count == 1 && pair.iphone.tasks.first?.id == phoneTask.id && pair.mac.tasks.first?.id == macTask.id)
+        #expect(pair.iphone.completedMinutes(for: phoneTask.id) == 10)
+        pair.iphoneClock.now.addTimeInterval(240)
+        try pair.iphone.reminders?.configure(identifier: "iphone-native", estimatedMinutesText: "45", deadlineOverride: nil)
+        #expect(pair.iphone.tasks.first?.availabilityExclusions == draft.availabilityExclusions)
+        await pair.iphone.localSync?.syncNow(); await settle()
+        let restarted = MetadataPair.makeModel(store: pair.macPlan, clock: pair.macClock)
+        restarted.attachReminders(provider: pair.macProvider, storage: pair.macMetadata)
+        await restarted.reminders?.loadState()
+        #expect(restarted.tasks.first?.availabilityExclusions == draft.availabilityExclusions)
+        try pair.iphone.reminders?.configure(identifier: "iphone-native", estimatedMinutesText: "45", deadlineOverride: nil, availabilityExclusions: [])
+        await pair.iphone.localSync?.syncNow(); await settle()
+        #expect(pair.mac.tasks.first?.availabilityExclusions.isEmpty == true)
+        #expect(pair.macProvider.writes.isEmpty && pair.iphoneProvider.writes.isEmpty)
+        #expect(pair.mac.syncState.records.values.filter { $0.kind == .task && $0.payload != nil }.isEmpty)
+    }
+    @Test func ordinaryRoutineAndGlobalRulesSyncBothWaysUsingExistingRevisions() async throws {
+        let pair = try await MetadataPair(); defer { pair.stop() }
+        let rule = AvailabilityExclusion(weekdays: Set(1...7), startMinuteOfDay: 1080, endMinuteOfDay: 1140)
+        let task = try pair.iphone.addTask(TaskDraft(title: "Synthetic time task", estimatedMinutesText: "90", deadline: ReminderFixtures.date(20, day: 15), availabilityExclusions: [rule]))
+        let routine = try pair.iphone.saveRoutine(Routine(title: "Synthetic time routine", estimatedMinutesPerDay: 60, startDate: ReminderFixtures.date(0, day: 13), endDate: ReminderFixtures.date(0, day: 20), recurrence: .weekly(weekday: 3), fixedStartMinuteOfDay: 1140))
+        var settings = pair.iphone.activitySettings
+        settings.globalAvailabilityExclusions = [AvailabilityExclusion(weekdays: Set(2...6), startMinuteOfDay: 720, endMinuteOfDay: 780)]
+        try pair.iphone.setActivitySettings(settings)
+        await pair.iphone.localSync?.syncNow(); await settle()
+        #expect(pair.mac.task(for: task.id)?.availabilityExclusions == [rule])
+        #expect(pair.mac.routines.first?.fixedStartMinuteOfDay == 1140 && pair.mac.activitySettings == settings)
+        #expect(pair.mac.result.blocks.filter { $0.taskID != task.id }.allSatisfy { ReminderFixtures.calendar.component(.hour, from: $0.start) == 19 && $0.durationMinutes == 60 })
+        #expect(pair.mac.result.fixedRoutineConflicts.isEmpty)
+        pair.macClock.now.addTimeInterval(120)
+        var changed = routine; changed.fixedStartMinuteOfDay = 1200
+        try pair.mac.saveRoutine(changed)
+        var draft = TaskDraft(task: task); draft.availabilityExclusions = []
+        try pair.mac.updateTask(id: task.id, draft: draft)
+        settings.globalAvailabilityExclusions = [AvailabilityExclusion(weekdays: [3], startMinuteOfDay: 1200, endMinuteOfDay: 1260)]
+        try pair.mac.setActivitySettings(settings)
+        await pair.mac.localSync?.syncNow(); await settle()
+        #expect(pair.iphone.task(for: task.id)?.availabilityExclusions.isEmpty == true)
+        #expect(pair.iphone.routines.first?.fixedStartMinuteOfDay == 1200 && pair.iphone.activitySettings == settings)
+        #expect(pair.iphone.result.fixedRoutineConflicts.contains { $0.reason == .globalExclusion })
+        #expect(pair.iphone.result.blocks.filter { $0.taskID != task.id }.allSatisfy { ReminderFixtures.calendar.component(.hour, from: $0.start) == 20 })
+        let restarted = MetadataPair.makeModel(store: pair.iphonePlan, clock: pair.iphoneClock)
+        #expect(restarted.routines == pair.iphone.routines && restarted.activitySettings == settings)
+        #expect(restarted.task(for: task.id)?.availabilityExclusions.isEmpty == true)
+        #expect(Set(pair.mac.syncState.records.values.map(\.kind)).isSuperset(of: [.task, .routine, .schedulingSettings]))
+    }
+    @Test func timeConstraintsBackupAndDiskCheckpointRoundTripAndOldFileDefaults() async throws {
+        let pair = try await MetadataPair(); defer { pair.stop() }
+        let values = [AvailabilityExclusion(weekdays: [2, 3, 4, 5, 6], startMinuteOfDay: 1080, endMinuteOfDay: 1140)]
+        let task = try pair.iphone.addTask(TaskDraft(title: "Synthetic backup", deadline: ReminderFixtures.date(23, day: 15), availabilityExclusions: values))
+        var routine = Routine(title: "Synthetic fixed backup", estimatedMinutesPerDay: 60, startDate: ReminderFixtures.date(0, day: 13), endDate: ReminderFixtures.date(0, day: 20), recurrence: .weekly(weekday: 3), fixedStartMinuteOfDay: 1140)
+        try pair.iphone.saveRoutine(routine)
+        var settings = pair.iphone.activitySettings; settings.globalAvailabilityExclusions = values
+        try pair.iphone.setActivitySettings(settings)
+        try pair.iphone.reminders?.configure(identifier: "iphone-native", estimatedMinutesText: "30", deadlineOverride: nil, availabilityExclusions: values)
+        let backup = try pair.iphone.makeBackup()
+        let decoded = try PersonalGanttBackup.decode(backup.encoded())
+        #expect(decoded == backup && decoded.plan.tasks.first { $0.id == task.id }?.availabilityExclusions == values)
+        #expect(decoded.reminders.metadata["iphone-native"]?.availabilityExclusions == values)
+        let journal = TimeRuleJournal()
+        pair.mac.configureBackup(reminderStore: pair.macMetadata, journal: journal, deviceID: pair.mac.syncState.deviceID)
+        try pair.mac.restoreBackup(decoded)
+        #expect(pair.mac.task(for: task.id)?.availabilityExclusions == values && pair.mac.activitySettings == settings)
+        #expect(pair.mac.reminders?.metadata(for: "mac-native")?.availabilityExclusions == values)
+        #expect(pair.mac.routines.first?.fixedStartMinuteOfDay == 1140)
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        do {
+            let disk = try SwiftDataPlanStore(url: directory.appendingPathComponent("Plan.store"))
+            try disk.save(decoded.plan)
+            try FileReminderMetadataStore(url: directory.appendingPathComponent("Reminders.json")).save(decoded.reminders)
+        }
+        #expect(try SwiftDataPlanStore(url: directory.appendingPathComponent("Plan.store")).load() == decoded.plan)
+        #expect(try FileReminderMetadataStore(url: directory.appendingPathComponent("Reminders.json")).load() == decoded.reminders)
+        // Construct a valid pre-feature checkpoint, then omit its new optional keys.
+        var legacy = decoded
+        legacy.plan.syncState = nil; legacy.plan.fixedRoutineConflicts = nil
+        legacy.plan.tasks = legacy.plan.tasks.filter { $0.routineOccurrence == nil }.map { task in var task = task; task.availabilityExclusions = []; return task }
+        routine.fixedStartMinuteOfDay = nil; legacy.plan.routines = [routine]
+        legacy.plan.blocks = []; legacy.plan.unscheduledTaskIDs = []
+        legacy.plan.schedulingSettings?.activitySettings?.globalAvailabilityExclusions = []
+        for key in legacy.reminders.metadata.keys { legacy.reminders.metadata[key]?.availabilityExclusions = [] }
+        func omit(_ value: Any) -> Any {
+            if let array = value as? [Any] { return array.map(omit) }
+            if let object = value as? [String: Any] { return object.filter { !["availabilityExclusions", "globalAvailabilityExclusions", "fixedStartMinuteOfDay", "fixedRoutineConflicts"].contains($0.key) }.mapValues(omit) }
+            return value
+        }
+        let oldData = try JSONSerialization.data(withJSONObject: omit(JSONSerialization.jsonObject(with: legacy.encoded())))
+        let old = try PersonalGanttBackup.decode(oldData)
+        #expect(old.plan.tasks.allSatisfy { $0.availabilityExclusions.isEmpty })
+        #expect(old.plan.routines?.first?.fixedStartMinuteOfDay == nil && old.plan.schedulingSettings?.activitySettings?.globalAvailabilityExclusions.isEmpty == true)
+        try pair.mac.restoreBackup(old)
+        #expect(pair.mac.routines.first?.fixedStartMinuteOfDay == nil && pair.mac.activitySettings.globalAvailabilityExclusions.isEmpty)
+    }
     @Test func iphoneEstimateClearsMacQueueWithoutCopyingNativeFields() async throws {
         let pair = try await MetadataPair()
         defer { pair.stop() }
@@ -20,7 +129,7 @@ import Testing
         let record = try #require(pair.mac.syncState.records.values.first { $0.kind == .reminderMetadata })
         let payload = try #require(record.payload)
         let object = try #require(JSONSerialization.jsonObject(with: payload) as? [String: Any])
-        #expect(Set(object.keys).isSubset(of: ["externalIdentifier", "occurrenceKey", "estimatedMinutes", "supplementalDeadline", "isExcluded"]))
+        #expect(Set(object.keys).isSubset(of: ["externalIdentifier", "occurrenceKey", "estimatedMinutes", "supplementalDeadline", "isExcluded", "availabilityExclusions"]))
     }
     @Test func macEditReturnsToIphoneWithoutDuplicateOrLostWork() async throws {
         let pair = try await MetadataPair()
@@ -302,4 +411,11 @@ struct ReminderMetadataWireTests {
         #expect(iphone.localSync?.isConnected == true && mac.localSync?.isConnected == true)
     }
     func stop() { iphone.localSync?.setAvailable(false); mac.localSync?.setAvailable(false) }
+}
+
+@MainActor private final class TimeRuleJournal: BackupJournalStoring {
+    var value: PersonalGanttBackup?
+    func load() throws -> PersonalGanttBackup? { value }
+    func save(_ backup: PersonalGanttBackup) throws { value = backup }
+    func remove() throws { value = nil }
 }

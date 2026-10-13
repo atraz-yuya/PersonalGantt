@@ -26,6 +26,7 @@ nonisolated enum ReminderTransferMapper {
             local.estimatedMinutes = source.estimatedMinutes
             local.deadlineOverride = record.deadline == nil ? source.deadlineOverride : nil
             local.isExcluded = source.isExcluded
+            local.availabilityExclusions = source.availabilityExclusions
             next.metadata[record.id] = local
             next.pendingTransfer?.removeValue(forKey: sourceID)
         }
@@ -47,7 +48,7 @@ nonisolated enum ReminderTransferMapper {
         var candidates: [String: ReminderTaskMetadata] = [:]
         var seen: Set<UUID> = []
         for (id, value) in source.metadata.sorted(by: { $0.key < $1.key }) {
-            if value.estimatedMinutes != nil || value.deadlineOverride != nil || value.isExcluded {
+            if value.estimatedMinutes != nil || value.deadlineOverride != nil || value.isExcluded || !value.availabilityExclusions.isEmpty {
                 candidates[id] = value; seen.insert(value.taskID)
             }
         }

@@ -58,7 +58,8 @@ nonisolated struct AvailabilityService: Sendable {
             }
             day = nextDay
         }
-        return IntervalSubtraction.subtract(occupiedIntervals(fixedEvents, calendar: calendar), from: activity)
+        let globalFree = AvailabilityExclusionSlots.subtract(settings.globalAvailabilityExclusions, from: activity, calendar: calendar)
+        return IntervalSubtraction.subtract(occupiedIntervals(fixedEvents, calendar: calendar), from: globalFree)
     }
 
     /// Event end is exclusive; an all-day event ending at midnight doesn't block the next day.
