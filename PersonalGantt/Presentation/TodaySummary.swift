@@ -2,10 +2,19 @@ import Foundation
 
 nonisolated struct TodaySummary: Equatable, Sendable {
     var blocks: [ScheduledBlock]
+    var schedule: DaySchedule?
     var nextWork: ScheduledBlock?
     var remainingPlannedMinutes: Double
     var actualMinutes: Double
-    static func make(now: Date, tasks: [Task], blocks: [ScheduledBlock], sessions: [WorkSession], calendar: Calendar) -> Self {
+    var allDayEvents: [DayFixedEvent] { schedule?.events.filter { $0.source.isAllDay } ?? [] }
+    var timelineItems: [DayTimelineItem] {
+        schedule?.items.filter {
+            if case .event(let event) = $0 { return !event.source.isAllDay }
+            return true
+        } ?? []
+    }
+    static func make(now: Date, tasks: [Task], blocks: [ScheduledBlock], events: [FixedEvent] = [],
+                     sessions: [WorkSession], calendar: Calendar) -> Self {
         guard let day = calendar.dateInterval(of: .day, for: now) else { return Self(blocks: [], remainingPlannedMinutes: 0, actualMinutes: 0) }
         let active = Set(tasks.filter { !$0.isCompleted }.map(\.id))
         // Preserved planned history belongs to the timeline, not today's to-do cards.
@@ -16,6 +25,7 @@ nonisolated struct TodaySummary: Equatable, Sendable {
             let overlap = max(0, min(session.end, day.end).timeIntervalSince(max(session.start, day.start)))
             return sum + overlap / session.end.timeIntervalSince(session.start) * Double(session.actualMinutes)
         }
-        return Self(blocks: today, nextWork: upcoming.first, remainingPlannedMinutes: planned, actualMinutes: actual)
+        let schedule = SchedulePresentation.snapshot(on: now, blocks: today, events: events, slots: [], calendar: calendar)
+        return Self(blocks: today, schedule: schedule, nextWork: upcoming.first, remainingPlannedMinutes: planned, actualMinutes: actual)
     }
 }

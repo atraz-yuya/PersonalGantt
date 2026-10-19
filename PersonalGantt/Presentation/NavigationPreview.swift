@@ -5,6 +5,7 @@ import Foundation
 /// uses this model; it never initializes live providers or the shared store.
 @MainActor enum NavigationPreview {
     static func makeModel() -> ScheduleViewModel {
+        if ProcessInfo.processInfo.arguments.contains("--today-dashboard-preview") { return makeTodayModel() }
         let calendar = Calendar.current
         let deadline = QuickDeadline.tomorrow.date(reference: Date(), calendar: calendar) ?? Date()
         let model = ScheduleViewModel(tasks: [], calendarProvider: PreviewCalendar(), calendar: calendar)
@@ -13,6 +14,45 @@ import Foundation
         model.attachReminders(provider: PreviewReminders(deadline: deadline), storage: PreviewMetadata())
         _ = try? model.addTask(TaskDraft(title: "UI確認用の作業", estimatedMinutesText: "60", deadline: deadline))
         return model
+    }
+
+    private static func makeTodayModel() -> ScheduleViewModel {
+        let calendar = Calendar.current
+        let day = calendar.startOfDay(for: Date())
+        let end = calendar.date(byAdding: .day, value: 1, to: day)!
+        let morning = calendar.date(bySettingHour: 8, minute: 0, second: 0, of: day)!
+        let tasks = [
+            Task(title: "資料をまとめる（UI確認用）", estimatedMinutes: 60, deadline: end),
+            Task(title: "締切を確認する（UI確認用）", estimatedMinutes: 90, deadline: day)
+        ]
+        let model = ScheduleViewModel(tasks: tasks, calendarProvider: PreviewTodayCalendar(day: day, calendar: calendar),
+            calendar: calendar, clock: { morning }, selectionStore: PreviewTodaySelection())
+        model.attachPlanStore(PreviewPlan())
+        model.configureLocalSync(link: PreviewLocalLink(), store: PreviewLocalPreferences())
+        return model
+    }
+}
+@MainActor private final class PreviewTodaySelection: CalendarSelectionStoring {
+    func load(clientID: String) -> Set<String> { ["preview-calendar"] }
+    func save(_ selection: Set<String>, clientID: String) { }
+    func clear(clientID: String) { }
+}
+@MainActor private final class PreviewTodayCalendar: CalendarProviding {
+    var authorization: CalendarAuthorization = .connected
+    let day: Date
+    let calendar: Calendar
+    init(day: Date, calendar: Calendar) { self.day = day; self.calendar = calendar }
+    func requestAccess() async throws -> CalendarAuthorization { authorization }
+    func loadCalendars() async throws -> [CalendarSource] {
+        [CalendarSource(id: "preview-calendar", title: "UI確認用カレンダー", accountTitle: "合成データ")]
+    }
+    func loadEvents(in range: DateInterval, calendarIDs: Set<String>) async throws -> [FixedEvent] {
+        guard calendarIDs.contains("preview-calendar") else { return [] }
+        return [(10, "打ち合わせ（UI確認用）"), (14, "外出（UI確認用）")].map { hour, title in
+            FixedEvent(id: "preview-event-\(hour)", calendarID: "preview-calendar", title: title,
+                start: calendar.date(bySettingHour: hour, minute: 0, second: 0, of: day)!,
+                end: calendar.date(bySettingHour: hour + 1, minute: 0, second: 0, of: day)!)
+        }
     }
 }
 @MainActor private final class PreviewCalendar: CalendarProviding {

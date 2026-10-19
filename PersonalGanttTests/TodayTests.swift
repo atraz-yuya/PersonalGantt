@@ -22,6 +22,68 @@ struct TodayTests {
         let summary = TodaySummary.make(now: ReminderFixtures.date(2), tasks: [], blocks: [], sessions: [session], calendar: ReminderFixtures.calendar)
         #expect(summary.actualMinutes == 60)
     }
+    @Test func calendarOnlyDayRemainsVisibleWithoutAddingWorkMinutes() throws {
+        let event = FixedEvent(id: "meeting", calendarID: "synthetic", title: "合成の予定",
+            start: ReminderFixtures.date(10), end: ReminderFixtures.date(11))
+        let summary = TodaySummary.make(now: ReminderFixtures.date(9), tasks: [], blocks: [], events: [event],
+            sessions: [], calendar: ReminderFixtures.calendar)
+        #expect(summary.nextWork == nil && summary.remainingPlannedMinutes == 0 && summary.actualMinutes == 0)
+        #expect(summary.timelineItems.count == 1)
+        guard case .event(let displayed) = try #require(summary.timelineItems.first) else {
+            Issue.record("The calendar-only day must display its event")
+            return
+        }
+        #expect(displayed.source == event)
+    }
+    @Test func workAndCalendarEventsShareChronologicalOrderIncludingPastEvents() {
+        let task = PersonalGantt.Task(title: "合成の作業", estimatedMinutes: 60, deadline: ReminderFixtures.date(23))
+        let work = ScheduledBlock(taskID: task.id, start: ReminderFixtures.date(10), end: ReminderFixtures.date(11))
+        let early = FixedEvent(id: "early", calendarID: "synthetic", title: "朝の予定",
+            start: ReminderFixtures.date(8), end: ReminderFixtures.date(9))
+        let late = FixedEvent(id: "late", calendarID: "synthetic", title: "午後の予定",
+            start: ReminderFixtures.date(12), end: ReminderFixtures.date(13))
+        let summary = TodaySummary.make(now: ReminderFixtures.date(9), tasks: [task], blocks: [work], events: [late, early],
+            sessions: [], calendar: ReminderFixtures.calendar)
+        #expect(summary.timelineItems.map(\.id) == [
+            .event(DayFixedEvent.ID(eventID: early.id, day: early.start)),
+            .work(work.id),
+            .event(DayFixedEvent.ID(eventID: late.id, day: late.start))
+        ])
+        #expect(summary.remainingPlannedMinutes == 60)
+    }
+    @Test func allDayEventsHaveTheirOwnRowsAndCancelledOrOtherDayEventsAreAbsent() {
+        let allDay = FixedEvent(id: "all-day", calendarID: "synthetic", title: "終日の予定",
+            start: ReminderFixtures.date(0), end: ReminderFixtures.date(0, day: 8), isAllDay: true)
+        let cancelled = FixedEvent(id: "cancelled", calendarID: "synthetic", title: "取り消し",
+            start: ReminderFixtures.date(10), end: ReminderFixtures.date(11), isCancelled: true)
+        let tomorrow = FixedEvent(id: "tomorrow", calendarID: "synthetic", title: "明日の予定",
+            start: ReminderFixtures.date(10, day: 8), end: ReminderFixtures.date(11, day: 8))
+        let summary = TodaySummary.make(now: ReminderFixtures.date(9), tasks: [], blocks: [],
+            events: [cancelled, tomorrow, allDay], sessions: [], calendar: ReminderFixtures.calendar)
+        #expect(summary.allDayEvents.map(\.source.id) == [allDay.id])
+        #expect(summary.timelineItems.isEmpty && summary.remainingPlannedMinutes == 0)
+    }
+    @Test func completedWorkDoesNotReappearWhenCalendarEventsAreIncluded() {
+        let task = PersonalGantt.Task(title: "完了済み", isCompleted: true, estimatedMinutes: 60, deadline: ReminderFixtures.date(23))
+        let work = ScheduledBlock(taskID: task.id, start: ReminderFixtures.date(8), end: ReminderFixtures.date(9))
+        let event = FixedEvent(id: "meeting", calendarID: "synthetic", title: "合成の予定",
+            start: ReminderFixtures.date(10), end: ReminderFixtures.date(11))
+        let summary = TodaySummary.make(now: ReminderFixtures.date(9), tasks: [task], blocks: [work], events: [event],
+            sessions: [], calendar: ReminderFixtures.calendar)
+        #expect(summary.blocks.isEmpty && summary.schedule?.blocks.isEmpty == true)
+        #expect(summary.timelineItems.count == 1 && summary.schedule?.events.first?.source == event)
+    }
+    @Test func overnightCalendarEventIsClippedToTheDisplayedDay() throws {
+        let event = FixedEvent(id: "overnight", calendarID: "synthetic", title: "日をまたぐ予定",
+            start: ReminderFixtures.date(23, day: 6), end: ReminderFixtures.date(1))
+        let summary = TodaySummary.make(now: ReminderFixtures.date(0), tasks: [], blocks: [], events: [event],
+            sessions: [], calendar: ReminderFixtures.calendar)
+        guard case .event(let displayed) = try #require(summary.timelineItems.first) else {
+            Issue.record("The overnight event must appear on today's timeline")
+            return
+        }
+        #expect(displayed.interval == DateInterval(start: ReminderFixtures.date(0), end: ReminderFixtures.date(1)))
+    }
 }
 @MainActor struct TodayIntegrationTests {
     @Test func completingBegunTaskHidesAllTodayCardsAndRestartKeepsHistory() async throws {

@@ -18,6 +18,11 @@ struct ScheduleDisplayIntegrationTests {
         #expect(first.blocks.count == 2 && first.events.count == 1 && first.workMinutes == 180)
         #expect(model.result == before)
         #expect(model.displayDays(referenceDate: ReminderFixtures.date(0)).count == 14)
+        let today = TodaySummary.make(now: clock.date, tasks: model.tasks, blocks: model.result.blocks,
+            events: model.fixedEvents, sessions: model.workSessions, calendar: ReminderFixtures.calendar)
+        #expect(today.timelineItems == first.items)
+        #expect(today.schedule?.events.map(\.source.title) == ["合成固定予定"])
+        #expect(today.remainingPlannedMinutes == 180 && model.result == before && http.requests.count == 2)
         try model.updateTask(id: task.id, draft: TaskDraft(title: "変更した作業", estimatedMinutesText: "90", deadline: task.deadline))
         let edited = try #require(model.daySchedule(on: ReminderFixtures.date(0)))
         #expect(edited.blocks.count == 1 && edited.workMinutes == 90)

@@ -31,14 +31,8 @@ struct TaskListView: View {
             }
             if !model.unscheduledTasks.isEmpty {
                 Section("未配置の作業") {
-                    ForEach(model.unscheduledTasks, id: \.id.uuidString) { task in
-                        Button { onDetail(task.id) } label: {
-                            VStack(alignment: .leading, spacing: 4) {
-                                Text(task.title).foregroundStyle(.primary)
-                                Text("未配置 \(model.unallocatedMinutes(for: task).formatted())分").foregroundStyle(.orange)
-                                if let message = model.feasibilityMessage(for: task) { Text(message).font(.caption).foregroundStyle(.secondary) }
-                            }
-                        }.buttonStyle(.plain)
+                    ForEach(model.unscheduledTasks.sorted(by: taskOrder)) { task in
+                        UnscheduledTaskRow(model: model, task: task, onDetail: onDetail)
                     }
                     Text("締切・対象期間の空き時間または日次上限が不足しています。所要時間・締切・日次上限を確認してください。")
                         .font(.caption).foregroundStyle(.secondary)
