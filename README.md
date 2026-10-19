@@ -19,7 +19,7 @@ Final Integrationで実績入力、長期作業の分散、優先度、Today改�
 ## 起動とGoogle設定
 
 1. PersonalGantt.xcodeprojをXcodeで開き、PersonalGantt Schemeを選ぶ。
-2. 実認証に使うAppleの開発TeamとKeychain用署名・Provisioning Profileを設定する。
+2. `Config/Signing.local.xcconfig.example` を `Config/Signing.local.xcconfig` へコピーし、`YOUR_TEAM_ID` を自分のApple Team IDに置き換える。ローカル設定はGitの追跡対象外です。実認証にはKeychain用署名・Provisioning Profileも必要です。
 3. Google CloudでCalendar APIとiOSタイプOAuthクライアントを設定する。
 4. サイドバー/メニューの「設定」→「連携」→「Google Calendar」でClient IDを保存し、Googleへログインする。
 5. Calendarを複数選び「反映」する。Google側の変更は「カレンダーを更新」から読み直す。

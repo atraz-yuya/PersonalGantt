@@ -17,3 +17,6 @@ ReminderMetadata.json
 LocalPlan.store*
 BackupRollback.json
 PersonalGantt-Backup*.json
+
+# Device-local Apple signing configuration
+Config/Signing.local.xcconfig

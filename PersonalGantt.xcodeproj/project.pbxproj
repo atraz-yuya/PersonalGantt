@@ -28,6 +28,7 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
+		A10600000000000000000001 /* Signing.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Config/Signing.xcconfig; sourceTree = SOURCE_ROOT; };
 		B76CF5E9306966EE00E617C5 /* PersonalGantt.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = PersonalGantt.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		B76CF5F6306966F000E617C5 /* PersonalGanttTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = PersonalGanttTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		B76CF600306966F000E617C5 /* PersonalGanttUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = PersonalGanttUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -77,6 +78,7 @@
 				B76CF5EB306966EE00E617C5 /* PersonalGantt */,
 				B76CF5F9306966F000E617C5 /* PersonalGanttTests */,
 				B76CF603306966F000E617C5 /* PersonalGanttUITests */,
+				A10600000000000000000001 /* Signing.xcconfig */,
 				B76CF5EA306966EE00E617C5 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -376,6 +378,7 @@
 		};
 		B76CF609306966F000E617C5 /* Debug configuration for PBXNativeTarget "PersonalGantt" */ = {
 			isa = XCBuildConfiguration;
+			baseConfigurationReference = A10600000000000000000001 /* Signing.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				"ASSETCATALOG_COMPILER_APPICON_NAME[sdk=macosx*]" = AppIconMac;
@@ -383,7 +386,6 @@
 				"CODE_SIGN_ENTITLEMENTS[sdk=macosx*]" = PersonalGantt/PersonalGantt.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = "";
 				ENABLE_APP_SANDBOX = YES;
 				ENABLE_PREVIEWS = YES;
 				ENABLE_USER_SELECTED_FILES = readwrite;
@@ -423,6 +425,7 @@
 		};
 		B76CF60A306966F000E617C5 /* Release configuration for PBXNativeTarget "PersonalGantt" */ = {
 			isa = XCBuildConfiguration;
+			baseConfigurationReference = A10600000000000000000001 /* Signing.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				"ASSETCATALOG_COMPILER_APPICON_NAME[sdk=macosx*]" = AppIconMac;
@@ -430,7 +433,6 @@
 				"CODE_SIGN_ENTITLEMENTS[sdk=macosx*]" = PersonalGantt/PersonalGantt.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = "";
 				ENABLE_APP_SANDBOX = YES;
 				ENABLE_PREVIEWS = YES;
 				ENABLE_USER_SELECTED_FILES = readwrite;
